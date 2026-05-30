@@ -36,6 +36,8 @@ services:
     depends_on:
       qdrant:
         condition: service_healthy
+      neo4j:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8100/health || exit 1"]
       interval: 10s
@@ -64,6 +66,32 @@ services:
       retries: 5
     restart: unless-stopped
 
+  # ──────────────────────────────────────
+  # Neo4j 图数据库
+  # ──────────────────────────────────────
+  neo4j:
+    image: neo4j:5-community
+    container_name: kb-neo4j
+    ports:
+      - "7474:7474"     # Web UI
+      - "7687:7687"     # Bolt 协议
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-changeme}
+      NEO4J_PLUGINS: '[]'
+      NEO4J_server_memory_heap_max__size: "512m"
+      NEO4J_server_memory_pagecache_size: "256m"
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: ["CMD-SHELL", "cypher-shell -u neo4j -p ${NEO4J_PASSWORD:-changeme} 'RETURN 1'"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
 volumes:
   kb_mcp_data:
   qdrant_data:
+  neo4j_data:
+  neo4j_logs:

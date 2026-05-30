@@ -4,6 +4,7 @@ import asyncio
 import sys
 
 import structlog
+import uvicorn
 
 from .config import settings
 from .core.kb_manager import KBManager
@@ -31,12 +32,8 @@ def create_embedding_provider():
         raise ValueError(f"不支持的 Embedding 提供商: {settings.embedding_provider}")
 
 
-async def async_main() -> None:
-    """异步主函数"""
-    # 确保数据目录存在
-    settings.ensure_dirs()
-
-    # 配置日志
+def _configure_logging() -> None:
+    """配置 structlog 日志"""
     structlog.configure(
         processors=[
             structlog.stdlib.filter_by_level,
@@ -55,13 +52,11 @@ async def async_main() -> None:
         cache_logger_on_first_use=True,
     )
 
-    logger.info(
-        "启动 Knowledge Base MCP Server",
-        transport=settings.kb_mcp_transport,
-        data_dir=str(settings.kb_mcp_data_dir),
-    )
 
-    # 创建 Embedding 提供商
+async def _init_kb_manager() -> KBManager:
+    """初始化 KBManager 实例"""
+    settings.ensure_dirs()
+
     embedding_provider = create_embedding_provider()
     logger.info(
         "Embedding 提供商初始化完成",
@@ -70,27 +65,86 @@ async def async_main() -> None:
         dimension=embedding_provider.dimension,
     )
 
-    # 创建 KBManager
     kb_manager = KBManager(
         settings=settings,
         embedding_provider=embedding_provider,
     )
     await kb_manager.initialize()
+    return kb_manager
 
-    # 设置全局 KBManager
+
+def _run_stdio(mcp_instance) -> None:
+    """以 stdio 模式运行 MCP Server"""
+    logger.info("MCP Server 以 stdio 模式启动")
+    mcp_instance.run(transport="stdio")
+
+
+def _run_streamable_http(mcp_instance) -> None:
+    """以 streamable-http 模式运行 MCP Server"""
+    logger.info(
+        "MCP Server 以 streamable-http 模式启动",
+        host=settings.kb_mcp_host,
+        port=settings.kb_mcp_http_port,
+    )
+    mcp_instance.run(
+        transport="streamable-http",
+        host=settings.kb_mcp_host,
+        port=settings.kb_mcp_http_port,
+    )
+
+
+def _run_fastapi_server() -> None:
+    """运行 FastAPI 管理 API 服务"""
+    logger.info(
+        "FastAPI 管理 API 启动",
+        host=settings.kb_mcp_host,
+        port=settings.kb_mcp_port,
+    )
+    uvicorn.run(
+        "kb_mcp_server.api.app:app",
+        host=settings.kb_mcp_host,
+        port=settings.kb_mcp_port,
+        log_level=settings.kb_mcp_log_level.lower(),
+        reload=False,
+    )
+
+
+async def async_main() -> None:
+    """异步主函数"""
+    _configure_logging()
+
+    logger.info(
+        "启动 Knowledge Base MCP Server",
+        transport=settings.kb_mcp_transport,
+        data_dir=str(settings.kb_mcp_data_dir),
+    )
+
+    # 初始化 KBManager
+    kb_manager = await _init_kb_manager()
+
+    # 设置全局 KBManager（MCP Tools 和 FastAPI 都使用）
     set_kb_manager(kb_manager)
 
-    # 注册 Tools
+    # 注册 MCP Tools
     register_tools()
+    logger.info("MCP Tools 已注册")
 
-    logger.info("MCP Server 准备就绪，等待连接...")
-
-    # 运行 MCP Server
+    # 根据传输模式运行
     if settings.kb_mcp_transport == "stdio":
-        mcp.run(transport="stdio")
+        _run_stdio(mcp)
+    elif settings.kb_mcp_transport == "streamable-http":
+        # streamable-http 模式下，同时启动 FastAPI 管理 API
+        # 使用 asyncio 并行运行两个服务
+        import threading
+
+        # 在后台线程运行 FastAPI
+        fastapi_thread = threading.Thread(target=_run_fastapi_server, daemon=True)
+        fastapi_thread.start()
+
+        # 主线程运行 MCP Server
+        _run_streamable_http(mcp)
     else:
-        # Streamable HTTP 模式
-        mcp.run(transport="streamable-http")
+        raise ValueError(f"不支持的传输方式: {settings.kb_mcp_transport}")
 
 
 def main() -> None:

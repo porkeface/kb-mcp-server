@@ -1,7 +1,6 @@
 """文档分块器 - 滑动窗口 + 语义边界感知"""
 
 from dataclasses import dataclass, field
-from typing import Any
 
 from ..models.chunk import Chunk, ParsedChunk
 

@@ -34,7 +34,9 @@ class PdfParser:
             raise FileNotFoundError(f"文件不存在: {file_path}")
 
         try:
-            import fitz  # PyMuPDF
+            import importlib.util
+            if importlib.util.find_spec("fitz") is None:
+                raise ImportError("PyMuPDF 未安装")
         except ImportError:
             raise ImportError("需要安装 PyMuPDF: uv add pymupdf")
 

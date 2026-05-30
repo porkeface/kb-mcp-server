@@ -13,7 +13,7 @@ from ..models.chunk import Chunk
 from ..models.knowledge_base import KnowledgeBaseInfo
 from ..models.search import SearchResult
 from ..parsers import MarkdownParser, TextParser, PdfParser
-from ..parsers.base import DocumentParser, ParsedChunk
+from ..parsers.base import DocumentParser
 from ..storage.registry import Registry
 from ..storage.qdrant_adapter import QdrantAdapter
 
