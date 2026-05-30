@@ -1,0 +1,69 @@
+# docker-compose.yml
+# Knowledge Base MCP Server -- 完整部署
+# 使用: docker compose up -d
+
+services:
+  # ──────────────────────────────────────
+  # MCP Server (FastAPI + MCP)
+  # ──────────────────────────────────────
+  kb-mcp-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: kb-mcp-server
+    ports:
+      - "8100:8100"     # FastAPI 管理 API
+      - "8101:8101"     # MCP Streamable HTTP 端点
+    environment:
+      # Qdrant
+      QDRANT_URL: http://qdrant:6333
+      # Neo4j
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: neo4j
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-changeme}
+      # Embedding
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-openai}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      # Server
+      KB_MCP_HOST: 0.0.0.0
+      KB_MCP_PORT: 8100
+      KB_MCP_HTTP_PORT: 8101
+      # 数据目录
+      KB_MCP_DATA_DIR: /data
+    volumes:
+      - kb_mcp_data:/data
+    depends_on:
+      qdrant:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8100/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ──────────────────────────────────────
+  # Qdrant 向量数据库
+  # ──────────────────────────────────────
+  qdrant:
+    image: qdrant/qdrant:v1.12.1
+    container_name: kb-qdrant
+    ports:
+      - "6333:6333"     # REST API
+      - "6334:6334"     # gRPC
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      QDRANT__SERVICE__GRPC_PORT: 6334
+      QDRANT__SERVICE__HTTP_PORT: 6333
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:6333/healthz || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  kb_mcp_data:
+  qdrant_data:
