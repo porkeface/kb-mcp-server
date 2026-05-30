@@ -14,6 +14,7 @@ class MarkdownParser:
 
     @property
     def supported_extensions(self) -> list[str]:
+        """支持的文件扩展名"""
         return [".md", ".markdown"]
 
     def parse(self, file_path: str) -> Sequence[ParsedChunk]:

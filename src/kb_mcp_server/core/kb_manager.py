@@ -127,8 +127,8 @@ class KBManager:
             collection_info = self._qdrant.collection_info(name)
             kb_info.extra["qdrant_points"] = collection_info.points_count
             kb_info.extra["qdrant_status"] = collection_info.status
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("获取 Qdrant 信息失败", kb=name, error=str(e))
 
         return kb_info
 

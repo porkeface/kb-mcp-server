@@ -14,6 +14,7 @@ class PdfParser:
 
     @property
     def supported_extensions(self) -> list[str]:
+        """支持的文件扩展名"""
         return [".pdf"]
 
     def parse(self, file_path: str) -> Sequence[ParsedChunk]:
