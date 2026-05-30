@@ -259,14 +259,26 @@
                                     <select id="setting-embedding-provider" onchange="onEmbeddingProviderChange()">
                                         <option value="openai">OpenAI 兼容</option>
                                         <option value="deepseek">DeepSeek</option>
-                                        <option value="fastembed">FastEmbed (本地)</option>
+                                        <option value="fastembed">FastEmbed (本地免费)</option>
                                     </select>
                                 </div>
                                 <div class="form-group" id="embedding-api-key-group">
                                     <label>API Key</label>
                                     <input type="password" id="setting-embedding-api-key" placeholder="sk-..." autocomplete="off">
                                 </div>
-                                <div class="form-group">
+                                <!-- FastEmbed 下拉选择 -->
+                                <div class="form-group" id="embedding-model-select-group">
+                                    <label>模型 <span class="text-muted">（本地模型，首次使用自动下载）</span></label>
+                                    <select id="setting-embedding-model-select">
+                                        <option value="BAAI/bge-small-zh-v1.5">BAAI/bge-small-zh-v1.5 (中文推荐)</option>
+                                        <option value="BAAI/bge-small-en-v1.5">BAAI/bge-small-en-v1.5 (英文)</option>
+                                        <option value="BAAI/bge-base-en-v1.5">BAAI/bge-base-en-v1.5 (英文更大)</option>
+                                        <option value="BAAI/bge-large-en-v1.5">BAAI/bge-large-en-v1.5 (英文最大)</option>
+                                        <option value="sentence-transformers/all-MiniLM-L6-v2">all-MiniLM-L6-v2 (通用)</option>
+                                    </select>
+                                </div>
+                                <!-- API 模型输入 -->
+                                <div class="form-group" id="embedding-model-input-group">
                                     <label>模型</label>
                                     <input type="text" id="setting-embedding-model" placeholder="text-embedding-3-small">
                                 </div>
@@ -274,7 +286,7 @@
                                     <label>API 地址</label>
                                     <input type="text" id="setting-embedding-base-url" placeholder="https://api.openai.com/v1">
                                 </div>
-                                <div class="form-group">
+                                <div class="form-group" id="embedding-dimension-group">
                                     <label>向量维度</label>
                                     <input type="number" id="setting-embedding-dimension" placeholder="自动检测">
                                 </div>

@@ -756,6 +756,20 @@ function populateSettingsForm() {
     document.getElementById('setting-embedding-provider').value = c.EMBEDDING_PROVIDER || 'openai';
     document.getElementById('setting-embedding-api-key').value = '';
     document.getElementById('setting-embedding-api-key').placeholder = c.EMBEDDING_API_KEY || 'sk-...';
+
+    // FastEmbed 模型下拉选择
+    const modelSelect = document.getElementById('setting-embedding-model-select');
+    const currentModel = c.EMBEDDING_MODEL || 'BAAI/bge-small-zh-v1.5';
+    if (modelSelect) {
+        // 检查当前模型是否在选项中
+        const option = modelSelect.querySelector(`option[value="${currentModel}"]`);
+        if (option) {
+            modelSelect.value = currentModel;
+        } else {
+            modelSelect.value = 'BAAI/bge-small-zh-v1.5';
+        }
+    }
+
     document.getElementById('setting-embedding-model').value = c.EMBEDDING_MODEL || '';
     document.getElementById('setting-embedding-base-url').value = c.EMBEDDING_BASE_URL || '';
     document.getElementById('setting-embedding-dimension').value = c.EMBEDDING_DIMENSION || '';
@@ -785,27 +799,38 @@ function populateSettingsForm() {
 function onEmbeddingProviderChange() {
     const provider = document.getElementById('setting-embedding-provider').value;
     const apiKeyGroup = document.getElementById('embedding-api-key-group');
+    const modelSelectGroup = document.getElementById('embedding-model-select-group');
+    const modelInputGroup = document.getElementById('embedding-model-input-group');
     const baseUrlGroup = document.getElementById('embedding-base-url-group');
+    const dimensionGroup = document.getElementById('embedding-dimension-group');
 
     if (provider === 'fastembed') {
+        // FastEmbed: 显示下拉选择，隐藏 API 相关字段
         apiKeyGroup.style.display = 'none';
+        modelSelectGroup.style.display = '';
+        modelInputGroup.style.display = 'none';
         baseUrlGroup.style.display = 'none';
+        dimensionGroup.style.display = 'none';
     } else {
+        // API 提供商: 显示输入框，隐藏下拉选择
         apiKeyGroup.style.display = '';
+        modelSelectGroup.style.display = 'none';
+        modelInputGroup.style.display = '';
         baseUrlGroup.style.display = '';
-    }
+        dimensionGroup.style.display = '';
 
-    // 填充默认值
-    const defaults = EMBEDDING_DEFAULTS[provider];
-    if (defaults) {
-        const modelInput = document.getElementById('setting-embedding-model');
-        const urlInput = document.getElementById('setting-embedding-base-url');
+        // 填充默认值
+        const defaults = EMBEDDING_DEFAULTS[provider];
+        if (defaults) {
+            const modelInput = document.getElementById('setting-embedding-model');
+            const urlInput = document.getElementById('setting-embedding-base-url');
 
-        if (!modelInput.value) {
-            modelInput.placeholder = defaults.model;
-        }
-        if (!urlInput.value) {
-            urlInput.placeholder = defaults.url || '自动';
+            if (!modelInput.value) {
+                modelInput.placeholder = defaults.model;
+            }
+            if (!urlInput.value) {
+                urlInput.placeholder = defaults.url || '自动';
+            }
         }
     }
 }
@@ -829,11 +854,16 @@ function onLLMProviderChange() {
 
 async function saveSettings() {
     try {
+        const embeddingProvider = document.getElementById('setting-embedding-provider').value;
+        const embeddingModel = embeddingProvider === 'fastembed'
+            ? document.getElementById('setting-embedding-model-select').value
+            : document.getElementById('setting-embedding-model').value;
+
         const settings = {
             // Embedding
-            EMBEDDING_PROVIDER: document.getElementById('setting-embedding-provider').value,
+            EMBEDDING_PROVIDER: embeddingProvider,
             EMBEDDING_API_KEY: document.getElementById('setting-embedding-api-key').value,
-            EMBEDDING_MODEL: document.getElementById('setting-embedding-model').value,
+            EMBEDDING_MODEL: embeddingModel,
             EMBEDDING_BASE_URL: document.getElementById('setting-embedding-base-url').value,
             EMBEDDING_DIMENSION: document.getElementById('setting-embedding-dimension').value,
 
@@ -879,14 +909,19 @@ async function testConnection(service) {
     card.classList.remove('test-success', 'test-error');
 
     // 收集当前 UI 中的配置值
+    const embeddingProvider = document.getElementById('setting-embedding-provider')?.value || '';
+    const embeddingModel = embeddingProvider === 'fastembed'
+        ? document.getElementById('setting-embedding-model-select')?.value || ''
+        : document.getElementById('setting-embedding-model')?.value || '';
+
     const currentSettings = {
         QDRANT_URL: document.getElementById('setting-qdrant-url')?.value || '',
         NEO4J_URI: document.getElementById('setting-neo4j-uri')?.value || '',
         NEO4J_USER: document.getElementById('setting-neo4j-user')?.value || '',
         NEO4J_PASSWORD: document.getElementById('setting-neo4j-password')?.value || '',
-        EMBEDDING_PROVIDER: document.getElementById('setting-embedding-provider')?.value || '',
+        EMBEDDING_PROVIDER: embeddingProvider,
         EMBEDDING_API_KEY: document.getElementById('setting-embedding-api-key')?.value || '',
-        EMBEDDING_MODEL: document.getElementById('setting-embedding-model')?.value || '',
+        EMBEDDING_MODEL: embeddingModel,
         EMBEDDING_BASE_URL: document.getElementById('setting-embedding-base-url')?.value || '',
         KB_MCP_EXTRACT_LLM: document.getElementById('setting-extract-llm')?.value || '',
         LLM_MODEL: document.getElementById('setting-llm-model')?.value || '',

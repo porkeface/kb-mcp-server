@@ -1096,6 +1096,23 @@ body {
     font-size: 18px;
 }
 
+/* FastEmbed 模型下拉框样式 */
+#embedding-model-select-group select {
+    padding: 10px 14px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 14px;
+    width: 100%;
+}
+
+#embedding-model-select-group select:focus {
+    outline: none;
+    border-color: var(--info);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
 /* 连接测试按钮 */
 .test-buttons {
     display: flex;
