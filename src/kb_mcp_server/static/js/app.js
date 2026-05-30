@@ -991,6 +991,42 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // 动态设置外部链接
+    updateExternalLinks();
+
     // 加载仪表盘
     navigateTo('dashboard');
 });
+
+/**
+ * 根据配置动态设置外部链接
+ */
+async function updateExternalLinks() {
+    try {
+        const result = await API.getConfig();
+        const config = result.data;
+
+        // 解析 Neo4j URI 获取端口
+        const neo4jUri = config.NEO4J_URI || 'bolt://localhost:7687';
+        const neo4jPort = neo4jUri.match(/:(\d+)/)?.[1] || '7687';
+        const neo4jHttpPort = parseInt(neo4jPort) + 1; // Bolt 端口 + 1 = HTTP 端口
+
+        // 设置 Neo4j Browser 链接
+        const neo4jLink = document.getElementById('neo4j-browser-link');
+        if (neo4jLink) {
+            neo4jLink.href = `http://localhost:${neo4jHttpPort}`;
+        }
+
+        // 解析 Qdrant URL 获取端口
+        const qdrantUrl = config.QDRANT_URL || 'http://localhost:6333';
+        const qdrantPort = qdrantUrl.match(/:(\d+)/)?.[1] || '6333';
+
+        // 设置 Qdrant Dashboard 链接
+        const qdrantLink = document.getElementById('qdrant-dashboard-link');
+        if (qdrantLink) {
+            qdrantLink.href = `http://localhost:${qdrantPort}/dashboard`;
+        }
+    } catch (error) {
+        console.error('更新外部链接失败:', error);
+    }
+}
