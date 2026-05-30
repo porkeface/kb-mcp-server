@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Knowledge Base MCP Server</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.1.0/fonts/remixicon.css" rel="stylesheet">
+</head>
+<body>
+    <div class="app">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <i class="ri-book-open-line"></i>
+                <h1>Knowledge Base</h1>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#" class="nav-item active" data-page="dashboard">
+                    <i class="ri-dashboard-line"></i>
+                    <span>仪表盘</span>
+                </a>
+                <a href="#" class="nav-item" data-page="knowledge-bases">
+                    <i class="ri-database-2-line"></i>
+                    <span>知识库</span>
+                </a>
+                <a href="#" class="nav-item" data-page="search">
+                    <i class="ri-search-line"></i>
+                    <span>搜索测试</span>
+                </a>
+                <a href="#" class="nav-item" data-page="upload">
+                    <i class="ri-upload-cloud-line"></i>
+                    <span>文档上传</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <a href="/docs" target="_blank" class="nav-item">
+                    <i class="ri-code-s-slash-line"></i>
+                    <span>API 文档</span>
+                </a>
+                <a href="http://localhost:7474" target="_blank" class="nav-item">
+                    <i class="ri-node-tree"></i>
+                    <span>Neo4j Browser</span>
+                </a>
+                <a href="http://localhost:6333/dashboard" target="_blank" class="nav-item">
+                    <i class="ri-dashboard-3-line"></i>
+                    <span>Qdrant Dashboard</span>
+                </a>
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main-content">
+            <!-- 仪表盘页面 -->
+            <div id="page-dashboard" class="page active">
+                <div class="page-header">
+                    <h2>仪表盘</h2>
+                    <button class="btn btn-primary" onclick="refreshDashboard()">
+                        <i class="ri-refresh-line"></i> 刷新
+                    </button>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="ri-database-2-line"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="stat-kb-count">-</span>
+                            <span class="stat-label">知识库数量</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="ri-file-text-line"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="stat-doc-count">-</span>
+                            <span class="stat-label">文档总数</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="ri-file-list-line"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="stat-chunk-count">-</span>
+                            <span class="stat-label">分块总数</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="ri-pulse-line"></i></div>
+                        <div class="stat-info">
+                            <span class="stat-value" id="stat-status">-</span>
+                            <span class="stat-label">服务状态</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="recent-section">
+                    <h3>最近的知识库</h3>
+                    <div id="recent-kb-list" class="kb-list"></div>
+                </div>
+            </div>
+
+            <!-- 知识库页面 -->
+            <div id="page-knowledge-bases" class="page">
+                <div class="page-header">
+                    <h2>知识库管理</h2>
+                    <button class="btn btn-primary" onclick="showCreateKBModal()">
+                        <i class="ri-add-line"></i> 创建知识库
+                    </button>
+                </div>
+                <div id="kb-list" class="kb-grid"></div>
+            </div>
+
+            <!-- 搜索测试页面 -->
+            <div id="page-search" class="page">
+                <div class="page-header">
+                    <h2>搜索测试</h2>
+                </div>
+                <div class="search-section">
+                    <div class="search-form">
+                        <select id="search-kb-select" class="form-select">
+                            <option value="">选择知识库</option>
+                        </select>
+                        <input type="text" id="search-query" class="form-input" placeholder="输入搜索内容...">
+                        <select id="search-type" class="form-select">
+                            <option value="vector">语义搜索</option>
+                            <option value="hybrid">混合检索</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="performSearch()">
+                            <i class="ri-search-line"></i> 搜索
+                        </button>
+                    </div>
+                    <div id="search-results" class="search-results"></div>
+                </div>
+            </div>
+
+            <!-- 文档上传页面 -->
+            <div id="page-upload" class="page">
+                <div class="page-header">
+                    <h2>文档上传</h2>
+                </div>
+                <div class="upload-section">
+                    <div class="upload-form">
+                        <select id="upload-kb-select" class="form-select">
+                            <option value="">选择知识库</option>
+                        </select>
+                        <div class="file-drop-zone" id="file-drop-zone">
+                            <i class="ri-upload-cloud-2-line"></i>
+                            <p>拖拽文件到此处，或点击选择文件</p>
+                            <p class="text-muted">支持 .md, .txt, .pdf 格式</p>
+                            <input type="file" id="file-input" accept=".md,.txt,.pdf" multiple hidden>
+                        </div>
+                        <div id="upload-file-list" class="file-list"></div>
+                        <div class="upload-options">
+                            <label>
+                                <input type="checkbox" id="extract-entities" checked>
+                                自动提取实体到知识图谱
+                            </label>
+                        </div>
+                        <button class="btn btn-primary" id="upload-btn" onclick="uploadFiles()" disabled>
+                            <i class="ri-upload-line"></i> 上传文件
+                        </button>
+                    </div>
+                    <div id="upload-progress" class="upload-progress"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- 创建知识库弹窗 -->
+    <div id="create-kb-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>创建知识库</h3>
+                <button class="btn-close" onclick="hideCreateKBModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>知识库名称</label>
+                    <input type="text" id="kb-name" class="form-input" placeholder="例如: yijing, finance, medical">
+                    <small>只能包含英文字母、数字和下划线</small>
+                </div>
+                <div class="form-group">
+                    <label>描述</label>
+                    <textarea id="kb-description" class="form-input" rows="3" placeholder="知识库描述（可选）"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="hideCreateKBModal()">取消</button>
+                <button class="btn btn-primary" onclick="createKB()">创建</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 知识库详情弹窗 -->
+    <div id="kb-detail-modal" class="modal">
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h3 id="kb-detail-title">知识库详情</h3>
+                <button class="btn-close" onclick="hideKBDetailModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="kb-detail-content"></div>
+            <div class="modal-footer">
+                <button class="btn btn-danger" id="delete-kb-btn" onclick="deleteKB()">
+                    <i class="ri-delete-bin-line"></i> 删除知识库
+                </button>
+                <button class="btn btn-secondary" onclick="hideKBDetailModal()">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 消息提示 -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

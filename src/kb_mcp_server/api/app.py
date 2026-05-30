@@ -1,12 +1,16 @@
 """FastAPI 管理 API - 知识库管理接口"""
 
+import shutil
+import uuid
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 import structlog
-from fastapi import Depends, FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, File, HTTPException, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from ..config import settings
 from ..core.kb_manager import KBManager
@@ -326,3 +330,146 @@ async def search_knowledge_base(
     except Exception as e:
         logger.error("搜索失败", name=name, query=query[:50], error=str(e))
         return error_response(status_code=500, detail=f"搜索失败: {str(e)}")
+
+
+# ──────────────────────────────────────────────
+# 混合搜索
+# ──────────────────────────────────────────────
+
+
+@app.get("/api/knowledge-bases/{name}/hybrid_search")
+async def hybrid_search_knowledge_base(
+    name: str,
+    query: str = Query(..., description="搜索查询"),
+    top_k: int = Query(10, ge=1, le=30, description="返回结果数量"),
+    include_graph: bool = Query(True, description="是否包含图谱检索"),
+    manager: KBManager = Depends(get_kb_manager),
+) -> JSONResponse:
+    """在知识库中进行混合检索"""
+    try:
+        # 如果有编排器，使用混合搜索
+        if hasattr(manager, '_orchestrator') and manager._orchestrator:
+            results = await manager._orchestrator.hybrid_search(
+                kb_name=name,
+                query=query,
+                max_results=top_k,
+            )
+
+            data = [
+                {
+                    "text": r.text,
+                    "score": round(r.score, 4),
+                    "source": r.source,
+                    "metadata": r.metadata,
+                    "sources": r.sources,
+                }
+                for r in results
+            ]
+        else:
+            # 降级到普通搜索
+            results = await manager.search(
+                kb_name=name,
+                query=query,
+                top_k=top_k,
+            )
+
+            data = [
+                {
+                    "text": r.text,
+                    "score": round(r.score, 4),
+                    "source": r.source,
+                    "metadata": r.metadata,
+                }
+                for r in results
+            ]
+
+        return success_response(
+            data=data,
+            message=f"共找到 {len(data)} 条结果",
+        )
+    except ValueError as e:
+        return error_response(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error("混合搜索失败", name=name, query=query[:50], error=str(e))
+        return error_response(status_code=500, detail=f"混合搜索失败: {str(e)}")
+
+
+# ──────────────────────────────────────────────
+# 文件上传
+# ──────────────────────────────────────────────
+
+
+@app.post("/api/knowledge-bases/{name}/upload")
+async def upload_file(
+    name: str,
+    file: UploadFile = File(..., description="上传的文件"),
+    extract_entities: bool = Query(True, description="是否自动提取实体"),
+    manager: KBManager = Depends(get_kb_manager),
+) -> JSONResponse:
+    """上传文件到知识库"""
+    # 检查文件类型
+    allowed_extensions = {".md", ".markdown", ".txt", ".text", ".pdf"}
+    file_ext = Path(file.filename).suffix.lower()
+
+    if file_ext not in allowed_extensions:
+        return error_response(
+            status_code=400,
+            detail=f"不支持的文件格式: {file_ext}，支持: {', '.join(allowed_extensions)}",
+        )
+
+    try:
+        # 保存上传的文件
+        upload_dir = settings.uploads_dir / name
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        # 生成唯一文件名
+        unique_filename = f"{uuid.uuid4().hex[:8]}_{file.filename}"
+        file_path = upload_dir / unique_filename
+
+        # 写入文件
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        logger.info("文件已上传", filename=file.filename, path=str(file_path))
+
+        # 导入到知识库
+        result = await manager.ingest(
+            kb_name=name,
+            file_path=str(file_path),
+        )
+
+        return success_response(
+            data={
+                "filename": file.filename,
+                "stored_path": str(file_path),
+                **result,
+            },
+            message=result.get("message", "文件上传并导入成功"),
+        )
+    except ValueError as e:
+        return error_response(status_code=400, detail=str(e))
+    except FileNotFoundError as e:
+        return error_response(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error("文件上传失败", name=name, filename=file.filename, error=str(e))
+        return error_response(status_code=500, detail=f"文件上传失败: {str(e)}")
+
+
+# ──────────────────────────────────────────────
+# 静态文件和 Web UI
+# ──────────────────────────────────────────────
+
+# 获取静态文件目录
+static_dir = Path(__file__).parent.parent / "static"
+
+# 挂载静态文件
+app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+
+@app.get("/")
+async def serve_ui():
+    """提供 Web UI 入口"""
+    index_path = static_dir / "index.html"
+    if index_path.exists():
+        return FileResponse(str(index_path))
+    return error_response(status_code=404, detail="Web UI 未找到")
