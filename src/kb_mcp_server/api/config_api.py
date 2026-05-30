@@ -234,15 +234,18 @@ async def test_connection(service: str, request: Request) -> dict:
         body = await request.json()
         ui_settings = body.get("settings", {})
 
-        # 合并 .env 文件配置和 UI 传入的配置
-        config = read_env_file()
+        # 使用 UI 传入的配置（不读取 .env 文件，避免混淆）
+        config = {}
 
-        # UI 传入的值优先（跳过空值和未修改的敏感字段）
+        # 处理 UI 传入的值
         for key, value in ui_settings.items():
-            if value and not (isinstance(value, str) and "****" in value):
-                config[key] = str(value)
+            # 跳过包含 **** 的值（未修改的敏感字段）
+            if isinstance(value, str) and "****" in value:
+                continue
+            # 空值也记录（表示用户清空了该字段）
+            config[key] = str(value) if value is not None else ""
 
-        logger.info("测试连接", service=service, config_keys=list(config.keys()))
+        logger.info("测试连接", service=service, provider=config.get("EMBEDDING_PROVIDER") or config.get("KB_MCP_EXTRACT_LLM"))
 
         if service == "qdrant":
             return await _test_qdrant(config)
@@ -302,7 +305,7 @@ async def _test_neo4j(config: dict) -> dict:
 async def _test_embedding(config: dict) -> dict:
     """测试 Embedding API"""
     provider = config.get("EMBEDDING_PROVIDER", "openai")
-    logger.info("测试 Embedding", provider=provider)
+    logger.info("测试 Embedding", provider=provider, config_keys=list(config.keys()), has_key=bool(config.get("EMBEDDING_API_KEY")))
 
     # FastEmbed 本地模型
     if provider == "fastembed":
