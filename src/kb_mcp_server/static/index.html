@@ -178,92 +178,9 @@
                     </div>
                 </div>
 
-                <div class="settings-grid">
-                    <!-- Embedding 配置 -->
-                    <div class="settings-card">
-                        <div class="settings-card-header">
-                            <div class="settings-card-icon">
-                                <i class="ri-vector-bezier"></i>
-                            </div>
-                            <div>
-                                <h3>Embedding</h3>
-                                <p>文本向量化模型配置</p>
-                            </div>
-                        </div>
-                        <div class="settings-card-body">
-                            <div class="form-group">
-                                <label>提供商</label>
-                                <select id="setting-embedding-provider" onchange="onEmbeddingProviderChange()">
-                                    <option value="openai">OpenAI 兼容</option>
-                                    <option value="deepseek">DeepSeek</option>
-                                    <option value="fastembed">FastEmbed (本地)</option>
-                                </select>
-                            </div>
-                            <div class="form-group" id="embedding-api-key-group">
-                                <label>API Key</label>
-                                <input type="password" id="setting-embedding-api-key" placeholder="sk-..." autocomplete="off">
-                            </div>
-                            <div class="form-group">
-                                <label>模型</label>
-                                <input type="text" id="setting-embedding-model" placeholder="text-embedding-3-small">
-                            </div>
-                            <div class="form-group" id="embedding-base-url-group">
-                                <label>API 地址</label>
-                                <input type="text" id="setting-embedding-base-url" placeholder="https://api.openai.com/v1">
-                            </div>
-                            <div class="form-group">
-                                <label>向量维度</label>
-                                <input type="number" id="setting-embedding-dimension" placeholder="自动检测">
-                            </div>
-                            <button class="btn btn-outline btn-sm" onclick="testConnection('embedding')">
-                                <i class="ri-link"></i> 测试连接
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- LLM 实体提取配置 -->
-                    <div class="settings-card">
-                        <div class="settings-card-header">
-                            <div class="settings-card-icon">
-                                <i class="ri-robot-line"></i>
-                            </div>
-                            <div>
-                                <h3>LLM 实体提取</h3>
-                                <p>用于知识图谱实体提取的大模型</p>
-                            </div>
-                        </div>
-                        <div class="settings-card-body">
-                            <div class="form-group">
-                                <label>启用实体提取</label>
-                                <select id="setting-extract-entities">
-                                    <option value="true">启用</option>
-                                    <option value="false">禁用</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>LLM 提供商</label>
-                                <select id="setting-extract-llm" onchange="onLLMProviderChange()">
-                                    <option value="deepseek">DeepSeek</option>
-                                    <option value="openai">OpenAI</option>
-                                    <option value="mimo">小米 MIMO</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>API Key</label>
-                                <input type="password" id="setting-llm-api-key" placeholder="sk-..." autocomplete="off">
-                            </div>
-                            <div class="form-group">
-                                <label>API 地址 <span class="text-muted">（可选，留空使用默认）</span></label>
-                                <input type="text" id="setting-llm-base-url" placeholder="自动根据提供商填充">
-                            </div>
-                            <button class="btn btn-outline btn-sm" onclick="testConnection('llm')">
-                                <i class="ri-link"></i> 测试连接
-                            </button>
-                        </div>
-                    </div>
-
+                <div class="settings-list">
                     <!-- Qdrant 配置 -->
-                    <div class="settings-card">
+                    <div class="settings-card" id="settings-qdrant">
                         <div class="settings-card-header">
                             <div class="settings-card-icon">
                                 <i class="ri-database-2-line"></i>
@@ -274,18 +191,23 @@
                             </div>
                         </div>
                         <div class="settings-card-body">
-                            <div class="form-group">
-                                <label>服务地址</label>
-                                <input type="text" id="setting-qdrant-url" placeholder="http://localhost:6333">
+                            <div class="settings-form-row">
+                                <div class="form-group">
+                                    <label>服务地址</label>
+                                    <input type="text" id="setting-qdrant-url" placeholder="http://localhost:6333">
+                                </div>
+                                <div class="form-group form-group-action">
+                                    <button class="btn btn-outline btn-test" onclick="testConnection('qdrant')" id="btn-test-qdrant">
+                                        <i class="ri-link"></i> 测试连接
+                                    </button>
+                                </div>
                             </div>
-                            <button class="btn btn-outline btn-sm" onclick="testConnection('qdrant')">
-                                <i class="ri-link"></i> 测试连接
-                            </button>
+                            <div class="test-result-inline" id="result-qdrant"></div>
                         </div>
                     </div>
 
                     <!-- Neo4j 配置 -->
-                    <div class="settings-card">
+                    <div class="settings-card" id="settings-neo4j">
                         <div class="settings-card-header">
                             <div class="settings-card-icon">
                                 <i class="ri-node-tree"></i>
@@ -296,27 +218,122 @@
                             </div>
                         </div>
                         <div class="settings-card-body">
-                            <div class="form-group">
-                                <label>连接 URI</label>
-                                <input type="text" id="setting-neo4j-uri" placeholder="bolt://localhost:7687">
+                            <div class="settings-form-row">
+                                <div class="form-group">
+                                    <label>连接 URI</label>
+                                    <input type="text" id="setting-neo4j-uri" placeholder="bolt://localhost:7687">
+                                </div>
+                                <div class="form-group">
+                                    <label>用户名</label>
+                                    <input type="text" id="setting-neo4j-user" placeholder="neo4j">
+                                </div>
+                                <div class="form-group">
+                                    <label>密码</label>
+                                    <input type="password" id="setting-neo4j-password" placeholder="密码" autocomplete="off">
+                                </div>
+                                <div class="form-group form-group-action">
+                                    <button class="btn btn-outline btn-test" onclick="testConnection('neo4j')" id="btn-test-neo4j">
+                                        <i class="ri-link"></i> 测试连接
+                                    </button>
+                                </div>
                             </div>
-                            <div class="form-group">
-                                <label>用户名</label>
-                                <input type="text" id="setting-neo4j-user" placeholder="neo4j">
+                            <div class="test-result-inline" id="result-neo4j"></div>
+                        </div>
+                    </div>
+
+                    <!-- Embedding 配置 -->
+                    <div class="settings-card" id="settings-embedding">
+                        <div class="settings-card-header">
+                            <div class="settings-card-icon">
+                                <i class="ri-vector-bezier"></i>
                             </div>
-                            <div class="form-group">
-                                <label>密码</label>
-                                <input type="password" id="setting-neo4j-password" placeholder="密码" autocomplete="off">
+                            <div>
+                                <h3>Embedding</h3>
+                                <p>文本向量化模型配置</p>
                             </div>
-                            <button class="btn btn-outline btn-sm" onclick="testConnection('neo4j')">
-                                <i class="ri-link"></i> 测试连接
-                            </button>
+                        </div>
+                        <div class="settings-card-body">
+                            <div class="settings-form-row">
+                                <div class="form-group">
+                                    <label>提供商</label>
+                                    <select id="setting-embedding-provider" onchange="onEmbeddingProviderChange()">
+                                        <option value="openai">OpenAI 兼容</option>
+                                        <option value="deepseek">DeepSeek</option>
+                                        <option value="fastembed">FastEmbed (本地)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" id="embedding-api-key-group">
+                                    <label>API Key</label>
+                                    <input type="password" id="setting-embedding-api-key" placeholder="sk-..." autocomplete="off">
+                                </div>
+                                <div class="form-group">
+                                    <label>模型</label>
+                                    <input type="text" id="setting-embedding-model" placeholder="text-embedding-3-small">
+                                </div>
+                                <div class="form-group" id="embedding-base-url-group">
+                                    <label>API 地址</label>
+                                    <input type="text" id="setting-embedding-base-url" placeholder="https://api.openai.com/v1">
+                                </div>
+                                <div class="form-group">
+                                    <label>向量维度</label>
+                                    <input type="number" id="setting-embedding-dimension" placeholder="自动检测">
+                                </div>
+                                <div class="form-group form-group-action">
+                                    <button class="btn btn-outline btn-test" onclick="testConnection('embedding')" id="btn-test-embedding">
+                                        <i class="ri-link"></i> 测试连接
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="test-result-inline" id="result-embedding"></div>
+                        </div>
+                    </div>
+
+                    <!-- LLM 实体提取配置 -->
+                    <div class="settings-card" id="settings-llm">
+                        <div class="settings-card-header">
+                            <div class="settings-card-icon">
+                                <i class="ri-robot-line"></i>
+                            </div>
+                            <div>
+                                <h3>LLM 实体提取</h3>
+                                <p>用于知识图谱实体提取的大模型</p>
+                            </div>
+                        </div>
+                        <div class="settings-card-body">
+                            <div class="settings-form-row">
+                                <div class="form-group">
+                                    <label>启用实体提取</label>
+                                    <select id="setting-extract-entities">
+                                        <option value="true">启用</option>
+                                        <option value="false">禁用</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>LLM 提供商</label>
+                                    <select id="setting-extract-llm" onchange="onLLMProviderChange()">
+                                        <option value="deepseek">DeepSeek</option>
+                                        <option value="openai">OpenAI</option>
+                                        <option value="mimo">小米 MIMO</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>API Key</label>
+                                    <input type="password" id="setting-llm-api-key" placeholder="sk-..." autocomplete="off">
+                                </div>
+                                <div class="form-group">
+                                    <label>API 地址 <span class="text-muted">（可选）</span></label>
+                                    <input type="text" id="setting-llm-base-url" placeholder="自动根据提供商填充">
+                                </div>
+                                <div class="form-group form-group-action">
+                                    <button class="btn btn-outline btn-test" onclick="testConnection('llm')" id="btn-test-llm">
+                                        <i class="ri-link"></i> 测试连接
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="test-result-inline" id="result-llm"></div>
                         </div>
                     </div>
                 </div>
-
-                <!-- 测试结果 -->
-                <div id="test-results" class="test-results mt-4"></div>
 
                 <!-- 提示信息 -->
                 <div class="card mt-4">

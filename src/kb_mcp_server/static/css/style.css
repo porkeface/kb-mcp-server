@@ -931,9 +931,9 @@ body {
    配置管理页面
    =========================================== */
 
-.settings-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
+.settings-list {
+    display: flex;
+    flex-direction: column;
     gap: 24px;
 }
 
@@ -942,6 +942,15 @@ body {
     border-radius: var(--radius-lg);
     border: 1px solid var(--border);
     overflow: hidden;
+    transition: border-color 0.3s;
+}
+
+.settings-card.test-success {
+    border-color: var(--success);
+}
+
+.settings-card.test-error {
+    border-color: var(--danger);
 }
 
 .settings-card-header {
@@ -965,6 +974,10 @@ body {
     font-size: 24px;
 }
 
+.settings-card.test-success .settings-card-icon {
+    background: linear-gradient(135deg, var(--success), #34d399);
+}
+
 .settings-card-header h3 {
     font-size: 18px;
     font-weight: 600;
@@ -980,15 +993,26 @@ body {
 
 .settings-card-body {
     padding: 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
 }
 
-.settings-card-body .form-group {
+.settings-form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+}
+
+.settings-form-row .form-group {
     display: flex;
     flex-direction: column;
     gap: 8px;
+    flex: 1;
+    min-width: 200px;
+}
+
+.settings-form-row .form-group-action {
+    flex: 0;
+    min-width: auto;
 }
 
 .settings-card-body label {
@@ -1025,16 +1049,51 @@ body {
     opacity: 0.6;
 }
 
-.settings-card-body .btn-sm {
-    align-self: flex-start;
-    padding: 8px 16px;
-    font-size: 13px;
+.btn-test {
+    padding: 10px 20px;
+    white-space: nowrap;
 }
 
-@media (max-width: 1024px) {
-    .settings-grid {
-        grid-template-columns: 1fr;
-    }
+.btn-test.success {
+    background: var(--success);
+    border-color: var(--success);
+    color: white;
+}
+
+.btn-test.error {
+    background: var(--danger);
+    border-color: var(--danger);
+    color: white;
+}
+
+.test-result-inline {
+    margin-top: 16px;
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    font-size: 14px;
+    display: none;
+}
+
+.test-result-inline.show {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.test-result-inline.success {
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--success);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.test-result-inline.error {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--danger);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.test-result-inline i {
+    font-size: 18px;
 }
 
 /* 连接测试按钮 */

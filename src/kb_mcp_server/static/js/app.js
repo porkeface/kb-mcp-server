@@ -866,62 +866,48 @@ async function saveSettings() {
 }
 
 async function testConnection(service) {
-    const container = document.getElementById('test-results');
+    const btn = document.getElementById(`btn-test-${service}`);
+    const resultEl = document.getElementById(`result-${service}`);
+    const card = document.getElementById(`settings-${service}`);
 
     // 显示加载状态
-    const resultId = `test-${service}-${Date.now()}`;
-    container.innerHTML = `
-        <div id="${resultId}" class="test-result-item loading">
-            <div class="test-result-icon loading">
-                <i class="ri-loader-4-line"></i>
-            </div>
-            <div class="test-result-info">
-                <div class="test-result-service">测试 ${service.toUpperCase()}</div>
-                <div class="test-result-message">连接中...</div>
-            </div>
-        </div>
-    ` + container.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<i class="ri-loader-4-line" style="animation: spin 1s linear infinite"></i> 测试中...';
+    resultEl.className = 'test-result-inline';
+    resultEl.style.display = 'none';
+    card.classList.remove('test-success', 'test-error');
 
     try {
         const result = await API.testConnection(service);
-        const el = document.getElementById(resultId);
 
         if (result.success) {
-            el.className = 'test-result-item success';
-            el.innerHTML = `
-                <div class="test-result-icon success">
-                    <i class="ri-check-line"></i>
-                </div>
-                <div class="test-result-info">
-                    <div class="test-result-service">${service.toUpperCase()}</div>
-                    <div class="test-result-message success">${result.message}</div>
-                </div>
-            `;
+            btn.className = 'btn btn-test success';
+            btn.innerHTML = '<i class="ri-check-line"></i> 连接成功';
+            resultEl.className = 'test-result-inline show success';
+            resultEl.innerHTML = `<i class="ri-check-line"></i> ${result.message}`;
+            card.classList.add('test-success');
         } else {
-            el.className = 'test-result-item error';
-            el.innerHTML = `
-                <div class="test-result-icon error">
-                    <i class="ri-close-line"></i>
-                </div>
-                <div class="test-result-info">
-                    <div class="test-result-service">${service.toUpperCase()}</div>
-                    <div class="test-result-message error">${result.message}</div>
-                </div>
-            `;
+            btn.className = 'btn btn-test error';
+            btn.innerHTML = '<i class="ri-close-line"></i> 连接失败';
+            resultEl.className = 'test-result-inline show error';
+            resultEl.innerHTML = `<i class="ri-error-warning-line"></i> ${result.message}`;
+            card.classList.add('test-error');
         }
     } catch (error) {
-        const el = document.getElementById(resultId);
-        el.className = 'test-result-item error';
-        el.innerHTML = `
-            <div class="test-result-icon error">
-                <i class="ri-close-line"></i>
-            </div>
-            <div class="test-result-info">
-                <div class="test-result-service">${service.toUpperCase()}</div>
-                <div class="test-result-message error">测试失败: ${error.message}</div>
-            </div>
-        `;
+        btn.className = 'btn btn-test error';
+        btn.innerHTML = '<i class="ri-close-line"></i> 连接失败';
+        resultEl.className = 'test-result-inline show error';
+        resultEl.innerHTML = `<i class="ri-error-warning-line"></i> 测试失败: ${error.message}`;
+        card.classList.add('test-error');
     }
+
+    btn.disabled = false;
+
+    // 3秒后恢复按钮样式
+    setTimeout(() => {
+        btn.className = 'btn btn-outline btn-test';
+        btn.innerHTML = '<i class="ri-link"></i> 测试连接';
+    }, 3000);
 }
 
 // ===========================================
