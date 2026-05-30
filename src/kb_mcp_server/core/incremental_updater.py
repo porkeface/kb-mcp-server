@@ -338,7 +338,7 @@ class IncrementalUpdater:
         # 生成文档 ID（复用旧 ID 或创建新 ID）
         import uuid
 
-        doc_id = old_fingerprint.doc_id if old_fingerprint else str(uuid.uuid4())[:8]
+        doc_id = old_fingerprint.doc_id if old_fingerprint else uuid.uuid4().hex[:12]
 
         chunker = Chunker(ChunkerConfig(chunk_size=chunk_size, chunk_overlap=chunk_overlap))
         chunks = chunker.chunk(list(parsed_chunks), kb_name, doc_id)

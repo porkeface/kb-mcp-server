@@ -456,8 +456,9 @@ async def upload_file(
         upload_dir = settings.uploads_dir / name
         upload_dir.mkdir(parents=True, exist_ok=True)
 
-        # 生成唯一文件名
-        unique_filename = f"{uuid.uuid4().hex[:8]}_{file.filename}"
+        # 生成唯一文件名（防止路径遍历攻击）
+        safe_filename = Path(file.filename).name  # 只取文件名部分，去除路径
+        unique_filename = f"{uuid.uuid4().hex[:12]}_{safe_filename}"
         file_path = upload_dir / unique_filename
 
         # 写入文件

@@ -91,7 +91,7 @@ class QdrantAdapter:
                 "section": chunk.metadata.get("section", ""),
                 "format": chunk.metadata.get("format", ""),
                 "kb_name": kb_name,
-                "indexed_at": datetime.now().isoformat(),
+                "indexed_at": datetime.now().isoformat(),  # TODO: 考虑使用 UTC 时间
             }
 
             points.append(

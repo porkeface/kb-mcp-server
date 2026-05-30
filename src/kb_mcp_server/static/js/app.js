@@ -514,7 +514,7 @@ async function performSearch() {
         container.innerHTML = `
             <div class="text-center" style="padding: 48px; color: var(--danger);">
                 <i class="ri-error-warning-line" style="font-size: 48px; display: block; margin-bottom: 16px;"></i>
-                <p>搜索失败: ${error.message}</p>
+                <p>搜索失败: ${escapeHtml(error.message)}</p>
             </div>
         `;
     }
