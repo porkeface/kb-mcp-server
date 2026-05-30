@@ -103,13 +103,30 @@ app.include_router(config_router)
 
 # 配置热重载回调
 def _reload_config():
-    """重新加载配置"""
-    from ..config import Settings
-    import importlib
-    # 重新加载配置模块
-    from .. import config
-    importlib.reload(config)
-    logger.info("配置已重新加载")
+    """重新加载配置（热重载）
+
+    由于 Pydantic Settings 在模块加载时就读取 .env，
+    热重载只能更新环境变量，下次创建新实例时才会生效。
+    已创建的 KBManager 等组件不会自动更新。
+    """
+    import os
+
+    # 重新读取 .env 文件到环境变量
+    env_path = Path(__file__).parent.parent.parent.parent / ".env"
+    if env_path.exists():
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" in line:
+                    key, _, value = line.partition("=")
+                    key = key.strip()
+                    value = value.strip().strip('"').strip("'")
+                    if key:
+                        os.environ[key] = value
+
+    logger.info("配置环境变量已更新（重启后完全生效）")
 
 from .config_api import set_reload_callback
 set_reload_callback(_reload_config)

@@ -7,11 +7,15 @@ from ..models.chunk import Chunk, ParsedChunk
 
 @dataclass(frozen=True)
 class ChunkerConfig:
-    """分块配置"""
+    """分块配置
 
-    chunk_size: int = 512  # 每个块的目标大小 (tokens)
-    chunk_overlap: int = 64  # 相邻块的重叠区域 (tokens)
-    min_chunk_size: int = 100  # 低于此阈值的块合并到前一块
+    注意: chunk_size 和 chunk_overlap 按字符数计算，不是 token 数。
+    中文约 1 字符 = 1 token，英文约 4 字符 = 1 token。
+    """
+
+    chunk_size: int = 512  # 每个块的目标大小 (字符数)
+    chunk_overlap: int = 64  # 相邻块的重叠区域 (字符数)
+    min_chunk_size: int = 100  # 低于此阈值的块跳过
     separators: list[str] = field(
         default_factory=lambda: ["\n## ", "\n### ", "\n\n", "\n", ". "]
     )

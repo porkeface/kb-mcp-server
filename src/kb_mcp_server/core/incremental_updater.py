@@ -414,21 +414,8 @@ class IncrementalUpdater:
 
         # 删除旧的被移除的分块
         if removed_hashes and old_fingerprint:
-            # 从 Qdrant 中删除旧分块
-            # 注意：这里简化处理，实际可能需要更精确的删除逻辑
+            # 删除旧文档的所有分块
             self._qdrant.delete_document(kb_name, doc_id)
-            # 重新写入所有分块
-            all_chunks_with_embedding: list[Chunk] = []
-            for chunk in chunks:
-                chunk_hash = self._compute_chunk_hash(chunk.text)
-                # 复用已有的 embedding 或等待新生成
-                if chunk_hash not in added_hashes:
-                    # 旧分块，需要重新嵌入（简化处理）
-                    pass
-
-            # 由于简化处理，直接删除旧文档并重新索引
-            if old_fingerprint:
-                self._qdrant.delete_document(kb_name, doc_id)
 
             # 重新嵌入所有分块
             logger.info("重新嵌入所有分块", chunk_count=len(chunks))

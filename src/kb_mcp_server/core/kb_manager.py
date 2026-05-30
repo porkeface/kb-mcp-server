@@ -205,7 +205,7 @@ class KBManager:
         parsed_chunks = parser.parse(file_path)
 
         # 分块
-        doc_id = str(uuid.uuid4())[:8]
+        doc_id = uuid.uuid4().hex[:12]
         chunker = Chunker(ChunkerConfig(chunk_size=chunk_size, chunk_overlap=chunk_overlap))
         chunks = chunker.chunk(list(parsed_chunks), kb_name, doc_id)
 
@@ -261,7 +261,7 @@ class KBManager:
         kb_name: str,
         query: str,
         top_k: int = 5,
-        score_threshold: float = 0.3,
+        score_threshold: float = 0.2,
     ) -> list[SearchResult]:
         """向量语义搜索
 

@@ -169,12 +169,58 @@ def _keyword_search_sync(
     query: str,
     top_k: int,
 ) -> list[SearchResult]:
-    """关键词检索 - 利用 Qdrant 全文搜索（payload 模拟 BM25）
+    """关键词检索 - 使用 Qdrant 全文搜索
 
-    当前实现：使用向量检索作为关键词检索的近似。
-    后续可替换为 Qdrant 的全文搜索（Full Text Search）接口。
+    使用 Qdrant 的全文搜索功能（models.Text）进行关键词匹配。
+    如果全文搜索不可用，降级为向量检索。
     """
-    # TODO: 替换为 Qdrant 原生全文搜索 (models.Text / models.Filter)
+    try:
+        from qdrant_client.models import Filter, FieldCondition, MatchText
+
+        # 使用 Qdrant 全文搜索
+        collection_name = f"kb_{kb_name}"
+        results = qdrant._client.scroll(
+            collection_name=collection_name,
+            scroll_filter=Filter(
+                must=[
+                    FieldCondition(
+                        key="text",
+                        match=MatchText(query=query)
+                    )
+                ]
+            ),
+            limit=top_k,
+            with_payload=True,
+            with_vectors=False,
+        )
+
+        search_results = []
+        for point in results[0]:  # results is (points, next_page_offset)
+            payload = point.payload or {}
+            search_results.append(
+                SearchResult(
+                    text=payload.get("text", ""),
+                    score=0.8,  # 全文匹配给固定分数
+                    source="keyword",
+                    metadata={
+                        "doc_id": payload.get("doc_id", ""),
+                        "chunk_index": payload.get("chunk_index", "0"),
+                        "section": payload.get("section", ""),
+                        "source": payload.get("source", ""),
+                        "format": payload.get("format", ""),
+                    },
+                )
+            )
+
+        if search_results:
+            return search_results
+
+        # 如果全文搜索没有结果，降级为向量检索
+        logger.debug("全文搜索无结果，降级为向量检索", kb_name=kb_name, query=query[:50])
+    except Exception as e:
+        logger.debug("全文搜索不可用，使用向量检索", kb_name=kb_name, error=str(e))
+
+    # 降级：使用向量检索
     query_vector = embedding.embed(query)
     return qdrant.search(
         kb_name=kb_name,

@@ -729,8 +729,8 @@ function escapeHtml(text) {
 // 提供商默认配置
 const EMBEDDING_DEFAULTS = {
     openai: { url: 'https://api.openai.com/v1', model: 'text-embedding-3-small' },
-    deepseek: { url: 'https://api.deepseek.com/v1', model: 'deepseek-embedding' },
-    fastembed: { url: '', model: 'BAAI/bge-small-en-v1.5' },
+    deepseek: { url: 'https://api.deepseek.com/v1', model: 'text-embedding-3-small' },
+    fastembed: { url: '', model: 'BAAI/bge-small-zh-v1.5' },
 };
 
 const LLM_DEFAULTS = {
@@ -1011,16 +1011,9 @@ async function updateExternalLinks() {
         // 从 NEO4J_URI 解析 Bolt 端口，然后计算 HTTP 端口
         const neo4jUri = config.NEO4J_URI || 'bolt://localhost:7687';
         const neo4jBoltPort = parseInt(neo4jUri.match(/:(\d+)/)?.[1] || '7687');
-        // 常见映射: 7687->7474, 7689->7476 (Bolt端口 - 243 = HTTP端口? 不准确)
-        // 直接使用配置中的端口偏移
-        let neo4jHttpPort;
-        if (neo4jBoltPort === 7689) {
-            neo4jHttpPort = 7476; // kb-neo4j 的映射
-        } else if (neo4jBoltPort === 7688) {
-            neo4jHttpPort = 7475; // yi-ai-neo4j 的映射
-        } else {
-            neo4jHttpPort = 7474; // 默认
-        }
+        // 通用映射规则: Bolt端口 - 13 = HTTP端口 (7687->7474, 7689->7476, 7688->7475)
+        // 如果差值不是13，则使用默认端口 7474
+        const neo4jHttpPort = (neo4jBoltPort - 13 >= 7474) ? neo4jBoltPort - 13 : 7474;
 
         // 设置 Neo4j Browser 链接
         const neo4jLink = document.getElementById('neo4j-browser-link');

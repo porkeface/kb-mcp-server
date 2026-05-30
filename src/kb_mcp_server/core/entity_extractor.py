@@ -160,7 +160,10 @@ class EntityExtractor:
         return None
 
     def _reset_entity_map(self) -> None:
-        """重置实体名称映射（每次新的提取任务前调用）"""
+        """重置实体名称映射（每次新的提取任务前调用）
+
+        注意: 此方法不是线程安全的，不应在并发提取任务中共享同一实例。
+        """
         self._entity_name_to_id.clear()
 
     def _get_or_create_entity_id(self, name: str) -> str:

@@ -404,8 +404,10 @@ class Neo4jAdapter:
             prefixed_rel = self._rel_type(kb_name, rel_type)
             rel_pattern = f":`{prefixed_rel}`"
         else:
-            # 遍历所有带前缀的关系
-            rel_pattern = ""
+            # 遍历所有带该知识库前缀的关系类型
+            prefix = f"kb_{kb_name}__"
+            rel_types = [f":`{prefix}{rt}`" for rt in RELATION_TYPES]
+            rel_pattern = "|".join(rel_types)
 
         async with self._driver.session() as session:
             result: AsyncResult = await session.run(
@@ -617,16 +619,22 @@ class Neo4jAdapter:
             关系边数量
         """
         self._validate_kb_name(kb_name)
-        # 使用通用匹配：找到所有从知识库节点出发的关系
         label = self._node_label(kb_name, "Entity")
+        prefix = f"kb_{kb_name}__"
 
+        # 只统计带该知识库前缀的关系
+        total = 0
         async with self._driver.session() as session:
-            result: AsyncResult = await session.run(
-                f"MATCH (n:`{label}`)-[r]-() "
-                f"RETURN count(DISTINCT r) AS cnt"
-            )
-            record = await result.single()
-            return record["cnt"] if record else 0
+            for rt in RELATION_TYPES:
+                prefixed_rel = f"{prefix}{rt}"
+                result: AsyncResult = await session.run(
+                    f"MATCH (n:`{label}`)-[r:`{prefixed_rel}`]-() "
+                    f"RETURN count(r) AS cnt"
+                )
+                record = await result.single()
+                total += record["cnt"] if record else 0
+
+        return total
 
     async def get_all_entities(
         self,

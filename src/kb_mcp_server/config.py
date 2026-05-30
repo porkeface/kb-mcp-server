@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     openai_api_key: str | None = Field(default=None, description="OpenAI API Key")
     embedding_api_key: str | None = Field(default=None, description="Embedding API Key（DeepSeek 等）")
     embedding_model: str = Field(
-        default="text-embedding-3-small", description="Embedding 模型名称"
+        default="BAAI/bge-small-zh-v1.5", description="Embedding 模型名称"
     )
     embedding_dimension: int | None = Field(default=None, description="向量维度（自动检测）")
     embedding_base_url: str | None = Field(default=None, description="Embedding API 基础地址（用于 DeepSeek 等兼容 API）")
