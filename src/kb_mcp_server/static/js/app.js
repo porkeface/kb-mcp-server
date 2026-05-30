@@ -1006,10 +1006,21 @@ async function updateExternalLinks() {
         const result = await API.getConfig();
         const config = result.data;
 
-        // 解析 Neo4j URI 获取端口
+        // Neo4j Browser 端口映射
+        // Docker 映射: 容器内 7474 (HTTP) -> 主机端口
+        // 从 NEO4J_URI 解析 Bolt 端口，然后计算 HTTP 端口
         const neo4jUri = config.NEO4J_URI || 'bolt://localhost:7687';
-        const neo4jPort = neo4jUri.match(/:(\d+)/)?.[1] || '7687';
-        const neo4jHttpPort = parseInt(neo4jPort) + 1; // Bolt 端口 + 1 = HTTP 端口
+        const neo4jBoltPort = parseInt(neo4jUri.match(/:(\d+)/)?.[1] || '7687');
+        // 常见映射: 7687->7474, 7689->7476 (Bolt端口 - 243 = HTTP端口? 不准确)
+        // 直接使用配置中的端口偏移
+        let neo4jHttpPort;
+        if (neo4jBoltPort === 7689) {
+            neo4jHttpPort = 7476; // kb-neo4j 的映射
+        } else if (neo4jBoltPort === 7688) {
+            neo4jHttpPort = 7475; // yi-ai-neo4j 的映射
+        } else {
+            neo4jHttpPort = 7474; // 默认
+        }
 
         // 设置 Neo4j Browser 链接
         const neo4jLink = document.getElementById('neo4j-browser-link');
@@ -1024,7 +1035,7 @@ async function updateExternalLinks() {
         // 设置 Qdrant Dashboard 链接
         const qdrantLink = document.getElementById('qdrant-dashboard-link');
         if (qdrantLink) {
-            qdrantLink.href = `http://localhost:${qdrantPort}/dashboard`;
+            qdrantLink.href = `http://localhost:${qdrantPort}/dashboard#/tutorial`;
         }
     } catch (error) {
         console.error('更新外部链接失败:', error);
