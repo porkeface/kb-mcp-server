@@ -101,6 +101,19 @@ app.add_middleware(
 # 注册配置管理路由
 app.include_router(config_router)
 
+# 配置热重载回调
+def _reload_config():
+    """重新加载配置"""
+    from ..config import Settings
+    import importlib
+    # 重新加载配置模块
+    from .. import config
+    importlib.reload(config)
+    logger.info("配置已重新加载")
+
+from .config_api import set_reload_callback
+set_reload_callback(_reload_config)
+
 
 # ──────────────────────────────────────────────
 # 健康检查

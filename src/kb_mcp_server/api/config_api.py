@@ -8,6 +8,15 @@ import structlog
 router = APIRouter(prefix="/api/config", tags=["config"])
 logger = structlog.get_logger()
 
+# 全局配置热重载回调
+_reload_callback = None
+
+
+def set_reload_callback(callback):
+    """设置配置热重载回调函数"""
+    global _reload_callback
+    _reload_callback = callback
+
 
 def mask_value(key: str, value: str | None) -> str | None:
     """隐藏敏感信息"""
@@ -222,7 +231,15 @@ async def update_config(request: Request) -> dict:
         # 写入文件
         write_env_file(current)
 
-        return {"success": True, "message": "配置已保存，重启服务后生效"}
+        # 触发热重载
+        if _reload_callback:
+            try:
+                _reload_callback()
+                logger.info("配置热重载成功")
+            except Exception as e:
+                logger.warning("配置热重载失败", error=str(e))
+
+        return {"success": True, "message": "配置已保存并生效"}
     except Exception as e:
         logger.error("保存配置失败", error=str(e))
         return {"success": False, "message": f"保存失败: {str(e)}"}
