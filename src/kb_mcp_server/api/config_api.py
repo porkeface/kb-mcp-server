@@ -1,12 +1,12 @@
 """配置管理 API"""
 
-import os
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from fastapi import APIRouter, HTTPException, Request
+import structlog
 
 router = APIRouter(prefix="/api/config", tags=["config"])
+logger = structlog.get_logger()
 
 
 def mask_value(key: str, value: str | None) -> str | None:
@@ -40,7 +40,8 @@ def read_env_file() -> dict:
                 key, _, value = line.partition("=")
                 key = key.strip()
                 value = value.strip().strip('"').strip("'")
-                config[key] = value
+                if key:
+                    config[key] = value
 
     return config
 
@@ -103,24 +104,6 @@ LLM_PROVIDERS = {
     },
 }
 
-EMBEDDING_PROVIDERS = {
-    "openai": {
-        "name": "OpenAI 兼容",
-        "default_url": "https://api.openai.com/v1",
-        "default_model": "text-embedding-3-small",
-    },
-    "deepseek": {
-        "name": "DeepSeek",
-        "default_url": "https://api.deepseek.com/v1",
-        "default_model": "deepseek-embedding",
-    },
-    "fastembed": {
-        "name": "FastEmbed (本地)",
-        "default_url": None,
-        "default_model": "BAAI/bge-small-en-v1.5",
-    },
-}
-
 
 @router.get("")
 async def get_config() -> dict:
@@ -140,7 +123,7 @@ async def get_config() -> dict:
 
             # Embedding
             "EMBEDDING_PROVIDER": config.get("EMBEDDING_PROVIDER", "openai"),
-            "EMBEDDING_API_KEY": mask_value("EMBEDDING_API_KEY", _get_embedding_api_key(config)),
+            "EMBEDDING_API_KEY": mask_value("EMBEDDING_API_KEY", config.get("EMBEDDING_API_KEY") or config.get("OPENAI_API_KEY")),
             "EMBEDDING_MODEL": config.get("EMBEDDING_MODEL", ""),
             "EMBEDDING_BASE_URL": config.get("EMBEDDING_BASE_URL", ""),
             "EMBEDDING_DIMENSION": config.get("EMBEDDING_DIMENSION", ""),
@@ -148,8 +131,8 @@ async def get_config() -> dict:
             # LLM 实体提取
             "KB_MCP_EXTRACT_ENTITIES": config.get("KB_MCP_EXTRACT_ENTITIES", "true"),
             "KB_MCP_EXTRACT_LLM": config.get("KB_MCP_EXTRACT_LLM", "deepseek"),
-            "LLM_API_KEY": mask_value("LLM_API_KEY", _get_llm_api_key(config)),
-            "LLM_BASE_URL": config.get("LLM_BASE_URL", ""),
+            "LLM_API_KEY": mask_value("LLM_API_KEY", config.get("LLM_API_KEY") or config.get("DEEPSEEK_API_KEY") or config.get("MIMO_API_KEY")),
+            "LLM_BASE_URL": config.get("LLM_BASE_URL") or config.get("MIMO_BASE_URL", ""),
 
             # 服务配置
             "KB_MCP_HOST": config.get("KB_MCP_HOST", "127.0.0.1"),
@@ -159,71 +142,51 @@ async def get_config() -> dict:
 
         return {"success": True, "data": data}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-def _get_embedding_api_key(config: dict) -> str | None:
-    """获取 Embedding API Key（兼容旧配置）"""
-    provider = config.get("EMBEDDING_PROVIDER", "openai")
-    if provider == "fastembed":
-        return None
-    # 优先使用新字段，兼容旧字段
-    return config.get("EMBEDDING_API_KEY") or config.get("OPENAI_API_KEY")
-
-
-def _get_llm_api_key(config: dict) -> str | None:
-    """获取 LLM API Key（兼容旧配置）"""
-    provider = config.get("KB_MCP_EXTRACT_LLM", "deepseek")
-    # 优先使用新字段，兼容旧字段
-    if provider == "deepseek":
-        return config.get("LLM_API_KEY") or config.get("DEEPSEEK_API_KEY")
-    elif provider == "mimo":
-        return config.get("LLM_API_KEY") or config.get("MIMO_API_KEY")
-    elif provider == "openai":
-        return config.get("LLM_API_KEY") or config.get("OPENAI_API_KEY")
-    return config.get("LLM_API_KEY")
+        logger.error("获取配置失败", error=str(e))
+        return {"success": False, "message": str(e), "data": {}}
 
 
 @router.post("")
-async def update_config(request: dict) -> dict:
+async def update_config(request: Request) -> dict:
     """更新配置"""
     try:
-        settings = request.get("settings", {})
+        body = await request.json()
+        settings = body.get("settings", {})
+
+        if not settings:
+            return {"success": False, "message": "没有配置数据"}
 
         # 读取现有配置
         current = read_env_file()
 
         # 字段映射（UI 字段 -> .env 字段）
         for key, value in settings.items():
-            if "****" in str(value):
-                continue  # 跳过未修改的敏感字段
+            # 跳过未修改的敏感字段
+            if isinstance(value, str) and "****" in value:
+                continue
 
             if key == "EMBEDDING_API_KEY":
-                # 写入到提供商对应的字段
                 provider = settings.get("EMBEDDING_PROVIDER", current.get("EMBEDDING_PROVIDER", "openai"))
                 if provider == "fastembed":
                     continue
                 if value:
-                    current["EMBEDDING_API_KEY"] = value
-                    # 兼容旧代码
+                    current["EMBEDDING_API_KEY"] = str(value)
                     if provider == "openai":
-                        current["OPENAI_API_KEY"] = value
+                        current["OPENAI_API_KEY"] = str(value)
                 else:
                     current.pop("EMBEDDING_API_KEY", None)
                     current.pop("OPENAI_API_KEY", None)
 
             elif key == "LLM_API_KEY":
-                # 写入到提供商对应的字段
                 provider = settings.get("KB_MCP_EXTRACT_LLM", current.get("KB_MCP_EXTRACT_LLM", "deepseek"))
                 if value:
-                    current["LLM_API_KEY"] = value
-                    # 兼容旧代码
+                    current["LLM_API_KEY"] = str(value)
                     if provider == "deepseek":
-                        current["DEEPSEEK_API_KEY"] = value
+                        current["DEEPSEEK_API_KEY"] = str(value)
                     elif provider == "mimo":
-                        current["MIMO_API_KEY"] = value
+                        current["MIMO_API_KEY"] = str(value)
                     elif provider == "openai":
-                        current["OPENAI_API_KEY"] = value
+                        current["OPENAI_API_KEY"] = str(value)
                 else:
                     current.pop("LLM_API_KEY", None)
                     current.pop("DEEPSEEK_API_KEY", None)
@@ -231,20 +194,24 @@ async def update_config(request: dict) -> dict:
 
             elif key == "LLM_BASE_URL":
                 if value:
-                    current["LLM_BASE_URL"] = value
-                    # 兼容旧代码
+                    current["LLM_BASE_URL"] = str(value)
                     provider = settings.get("KB_MCP_EXTRACT_LLM", current.get("KB_MCP_EXTRACT_LLM", "deepseek"))
                     if provider == "mimo":
-                        current["MIMO_BASE_URL"] = value
+                        current["MIMO_BASE_URL"] = str(value)
                 else:
                     current.pop("LLM_BASE_URL", None)
                     current.pop("MIMO_BASE_URL", None)
 
             elif key == "EMBEDDING_BASE_URL":
                 if value:
-                    current["EMBEDDING_BASE_URL"] = value
+                    current["EMBEDDING_BASE_URL"] = str(value)
                 else:
                     current.pop("EMBEDDING_BASE_URL", None)
+
+            elif key in ("NEO4J_PASSWORD",):
+                if value:
+                    current[key] = str(value)
+                # 空值不更新密码
 
             elif value == "" or value is None:
                 current.pop(key, None)
@@ -256,36 +223,26 @@ async def update_config(request: dict) -> dict:
 
         return {"success": True, "message": "配置已保存，重启服务后生效"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/providers")
-async def get_providers() -> dict:
-    """获取提供商配置"""
-    return {
-        "success": True,
-        "data": {
-            "llm": LLM_PROVIDERS,
-            "embedding": EMBEDDING_PROVIDERS,
-        }
-    }
+        logger.error("保存配置失败", error=str(e))
+        return {"success": False, "message": f"保存失败: {str(e)}"}
 
 
 @router.post("/test/{service}")
-async def test_connection(service: str, request: dict = None) -> dict:
-    """测试服务连接
-
-    可选传入当前 UI 中的配置值进行测试，无需先保存
-    """
+async def test_connection(service: str, request: Request) -> dict:
+    """测试服务连接（使用 UI 中的值，无需先保存）"""
     try:
+        body = await request.json()
+        ui_settings = body.get("settings", {})
+
         # 合并 .env 文件配置和 UI 传入的配置
         config = read_env_file()
-        if request and "settings" in request:
-            ui_settings = request["settings"]
-            # UI 传入的值优先（跳过空值和未修改的敏感字段）
-            for key, value in ui_settings.items():
-                if value and "****" not in str(value):
-                    config[key] = value
+
+        # UI 传入的值优先（跳过空值和未修改的敏感字段）
+        for key, value in ui_settings.items():
+            if value and not (isinstance(value, str) and "****" in value):
+                config[key] = str(value)
+
+        logger.info("测试连接", service=service, config_keys=list(config.keys()))
 
         if service == "qdrant":
             return await _test_qdrant(config)
@@ -296,10 +253,9 @@ async def test_connection(service: str, request: dict = None) -> dict:
         elif service == "llm":
             return await _test_llm(config)
         else:
-            raise HTTPException(status_code=400, detail=f"不支持的服务: {service}")
-    except HTTPException:
-        raise
+            return {"success": False, "message": f"不支持的服务: {service}"}
     except Exception as e:
+        logger.error("测试连接失败", service=service, error=str(e))
         return {"success": False, "message": f"测试失败: {str(e)}"}
 
 
@@ -330,48 +286,60 @@ async def _test_neo4j(config: dict) -> dict:
         password = config.get("NEO4J_PASSWORD", "changeme")
 
         driver = GraphDatabase.driver(uri, auth=(user, password))
-        with driver.session() as session:
-            result = session.run("RETURN 1 AS num")
-            record = result.single()
-            if record and record["num"] == 1:
-                return {"success": True, "message": "连接成功"}
-        driver.close()
-        return {"success": False, "message": "连接失败"}
+        try:
+            with driver.session() as session:
+                result = session.run("RETURN 1 AS num")
+                record = result.single()
+                if record and record["num"] == 1:
+                    return {"success": True, "message": "连接成功"}
+            return {"success": False, "message": "连接失败"}
+        finally:
+            driver.close()
     except Exception as e:
         return {"success": False, "message": f"连接失败: {str(e)}"}
 
 
 async def _test_embedding(config: dict) -> dict:
     """测试 Embedding API"""
+    provider = config.get("EMBEDDING_PROVIDER", "openai")
+    logger.info("测试 Embedding", provider=provider)
+
+    # FastEmbed 本地模型
+    if provider == "fastembed":
+        try:
+            from fastembed import TextEmbedding
+            model_name = config.get("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
+            if model_name.startswith("text-embedding"):
+                model_name = "BAAI/bge-small-en-v1.5"
+            model = TextEmbedding(model_name=model_name)
+            embeddings = list(model.embed(["测试"]))
+            return {
+                "success": True,
+                "message": f"FastEmbed 可用，模型: {model_name}，维度: {len(embeddings[0])}"
+            }
+        except ImportError:
+            return {"success": False, "message": "FastEmbed 未安装，请运行: uv add fastembed"}
+        except Exception as e:
+            return {"success": False, "message": f"FastEmbed 错误: {str(e)}"}
+
+    # OpenAI 兼容 API
+    api_key = config.get("EMBEDDING_API_KEY") or config.get("OPENAI_API_KEY")
+    if not api_key:
+        return {"success": False, "message": f"请先配置 API Key（当前提供商: {provider}）"}
+
+    base_url = config.get("EMBEDDING_BASE_URL", "")
+    if not base_url:
+        if provider == "deepseek":
+            base_url = "https://api.deepseek.com/v1"
+        else:
+            base_url = "https://api.openai.com/v1"
+
+    model = config.get("EMBEDDING_MODEL", "text-embedding-3-small")
+
     try:
         import httpx
 
-        provider = config.get("EMBEDDING_PROVIDER", "openai")
-
-        if provider == "fastembed":
-            try:
-                from fastembed import TextEmbedding
-                model_name = config.get("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
-                if model_name.startswith("text-embedding"):
-                    model_name = "BAAI/bge-small-en-v1.5"
-                model = TextEmbedding(model_name=model_name)
-                embeddings = list(model.embed(["测试"]))
-                return {
-                    "success": True,
-                    "message": f"FastEmbed 可用，维度: {len(embeddings[0])}"
-                }
-            except ImportError:
-                return {"success": False, "message": "FastEmbed 未安装，请运行: uv add fastembed"}
-
-        # API 方式
-        api_key = _get_embedding_api_key(config)
-        if not api_key:
-            return {"success": False, "message": "请先配置 Embedding API Key"}
-
-        base_url = config.get("EMBEDDING_BASE_URL", "https://api.openai.com/v1")
-        model = config.get("EMBEDDING_MODEL", "text-embedding-3-small")
-
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=15) as client:
             response = await client.post(
                 f"{base_url}/embeddings",
                 headers={"Authorization": f"Bearer {api_key}"},
@@ -383,30 +351,53 @@ async def _test_embedding(config: dict) -> dict:
                 dimension = len(data["data"][0]["embedding"])
                 return {"success": True, "message": f"连接成功，模型: {model}，维度: {dimension}"}
             else:
-                return {"success": False, "message": f"API 错误: {response.status_code}"}
+                error_msg = response.text[:200] if response.text else f"HTTP {response.status_code}"
+                return {"success": False, "message": f"API 错误: {error_msg}"}
     except Exception as e:
-        return {"success": False, "message": f"测试失败: {str(e)}"}
+        return {"success": False, "message": f"连接失败: {str(e)}"}
 
 
 async def _test_llm(config: dict) -> dict:
     """测试 LLM API"""
+    provider = config.get("KB_MCP_EXTRACT_LLM", "deepseek")
+    logger.info("测试 LLM", provider=provider)
+
+    # 获取 API Key
+    api_key = config.get("LLM_API_KEY")
+    if not api_key:
+        if provider == "deepseek":
+            api_key = config.get("DEEPSEEK_API_KEY")
+        elif provider == "mimo":
+            api_key = config.get("MIMO_API_KEY")
+        elif provider == "openai":
+            api_key = config.get("OPENAI_API_KEY")
+
+    if not api_key:
+        return {"success": False, "message": f"请先配置 API Key（当前提供商: {provider}）"}
+
+    # 获取 base_url
+    provider_info = LLM_PROVIDERS.get(provider, LLM_PROVIDERS["deepseek"])
+    base_url = config.get("LLM_BASE_URL", "")
+    if not base_url:
+        if provider == "mimo":
+            base_url = config.get("MIMO_BASE_URL", provider_info["default_url"])
+        else:
+            base_url = provider_info["default_url"]
+
+    model = provider_info["default_model"]
+
+    logger.info("LLM 测试参数", provider=provider, base_url=base_url, model=model, has_key=bool(api_key))
+
     try:
         import httpx
 
-        provider = config.get("KB_MCP_EXTRACT_LLM", "deepseek")
-        api_key = _get_llm_api_key(config)
-
-        if not api_key:
-            return {"success": False, "message": "请先配置 LLM API Key"}
-
-        provider_info = LLM_PROVIDERS.get(provider, LLM_PROVIDERS["deepseek"])
-        base_url = config.get("LLM_BASE_URL") or provider_info["default_url"]
-        model = provider_info["default_model"]
-
-        async with httpx.AsyncClient(timeout=10) as client:
+        async with httpx.AsyncClient(timeout=15) as client:
             response = await client.post(
                 f"{base_url}/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}"},
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json"
+                },
                 json={
                     "model": model,
                     "messages": [{"role": "user", "content": "Hi"}],
@@ -417,6 +408,7 @@ async def _test_llm(config: dict) -> dict:
             if response.status_code == 200:
                 return {"success": True, "message": f"{provider_info['name']} API 连接成功"}
             else:
-                return {"success": False, "message": f"API 错误: {response.status_code}"}
+                error_msg = response.text[:200] if response.text else f"HTTP {response.status_code}"
+                return {"success": False, "message": f"API 错误 ({response.status_code}): {error_msg}"}
     except Exception as e:
-        return {"success": False, "message": f"测试失败: {str(e)}"}
+        return {"success": False, "message": f"连接失败: {str(e)}"}

@@ -143,18 +143,12 @@ const API = {
     },
 
     /**
-     * 获取提供商配置
-     */
-    async getProviders() {
-        return this.request('/api/config/providers');
-    },
-
-    /**
      * 测试服务连接
      */
-    async testConnection(service) {
+    async testConnection(service, settings) {
         return this.request(`/api/config/test/${service}`, {
-            method: 'POST'
+            method: 'POST',
+            body: JSON.stringify({ settings })
         });
     }
 };
