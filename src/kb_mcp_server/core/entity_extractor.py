@@ -33,6 +33,10 @@ _PROVIDER_CONFIGS: dict[str, dict[str, str]] = {
         "base_url": "https://api.deepseek.com/v1",
         "default_model": "deepseek-chat",
     },
+    "mimo": {
+        "base_url": "https://api.mimo.ai/v1",  # 小米 MIMO API 地址（需要确认）
+        "default_model": "mimo-chat",
+    },
 }
 
 

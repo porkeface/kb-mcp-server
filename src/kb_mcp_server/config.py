@@ -25,6 +25,7 @@ class Settings(BaseSettings):
         default="text-embedding-3-small", description="Embedding 模型名称"
     )
     embedding_dimension: int | None = Field(default=None, description="向量维度（自动检测）")
+    embedding_base_url: str | None = Field(default=None, description="Embedding API 基础地址（用于 DeepSeek 等兼容 API）")
 
     # ── MCP Server ──
     kb_mcp_host: str = Field(default="127.0.0.1", description="MCP Server 主机")
@@ -44,8 +45,10 @@ class Settings(BaseSettings):
     kb_mcp_extract_entities: bool = Field(
         default=True, description="导入文档时是否自动提取实体"
     )
-    kb_mcp_extract_llm: str = Field(default="deepseek", description="用于实体提取的 LLM")
+    kb_mcp_extract_llm: str = Field(default="deepseek", description="用于实体提取的 LLM: openai | deepseek | mimo")
     deepseek_api_key: str | None = Field(default=None, description="DeepSeek API Key")
+    mimo_api_key: str | None = Field(default=None, description="小米 MIMO API Key")
+    mimo_base_url: str | None = Field(default=None, description="小米 MIMO API 基础地址")
 
     model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
 

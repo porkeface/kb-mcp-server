@@ -18,6 +18,7 @@ class OpenAIEmbedding:
         api_key: str,
         model: str = "text-embedding-3-small",
         dimension: int | None = None,
+        base_url: str | None = None,
     ) -> None:
         """初始化 OpenAI Embedding 提供商
 
@@ -25,14 +26,15 @@ class OpenAIEmbedding:
             api_key: OpenAI API Key
             model: 模型名称
             dimension: 向量维度（可选，默认由模型决定）
+            base_url: API 基础地址（可选，用于 DeepSeek 等兼容 API）
         """
         from openai import OpenAI
 
-        self._client = OpenAI(api_key=api_key)
+        self._client = OpenAI(api_key=api_key, base_url=base_url)
         self._model = model
         self._dimension = dimension
 
-        logger.info("OpenAI Embedding 初始化", model=model, dimension=dimension)
+        logger.info("OpenAI Embedding 初始化", model=model, dimension=dimension, base_url=base_url)
 
     @property
     def dimension(self) -> int:

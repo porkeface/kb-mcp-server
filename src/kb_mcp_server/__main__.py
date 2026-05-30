@@ -25,6 +25,7 @@ def create_embedding_provider():
             api_key=settings.openai_api_key,
             model=settings.embedding_model,
             dimension=settings.embedding_dimension,
+            base_url=settings.embedding_base_url,
         )
     elif settings.embedding_provider == "fastembed":
         return FastEmbedEmbedding(model_name=settings.embedding_model)
