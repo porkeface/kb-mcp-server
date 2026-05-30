@@ -73,8 +73,8 @@ services:
     image: neo4j:5-community
     container_name: kb-neo4j
     ports:
-      - "7474:7474"     # Web UI
-      - "7687:7687"     # Bolt 协议
+      - "7476:7474"     # Web UI
+      - "7689:7687"     # Bolt 协议
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-changeme}
       NEO4J_PLUGINS: '[]'

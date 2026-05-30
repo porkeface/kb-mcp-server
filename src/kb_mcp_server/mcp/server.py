@@ -2,8 +2,12 @@
 
 from mcp.server.fastmcp import FastMCP
 
+from ..config import settings
+
 # 创建 FastMCP 实例
 mcp = FastMCP(
     "knowledge-base",
     instructions="知识库 MCP Server - 为 Claude Code Agent 提供多领域知识库检索能力",
+    host=settings.kb_mcp_host,
+    port=settings.kb_mcp_http_port,
 )

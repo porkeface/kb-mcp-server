@@ -126,13 +126,6 @@ const API = {
     },
 
     /**
-     * 获取配置 Schema
-     */
-    async getConfigSchema() {
-        return this.request('/api/config/schema');
-    },
-
-    /**
      * 获取当前配置
      */
     async getConfig() {
@@ -147,6 +140,13 @@ const API = {
             method: 'POST',
             body: JSON.stringify({ settings })
         });
+    },
+
+    /**
+     * 获取提供商配置
+     */
+    async getProviders() {
+        return this.request('/api/config/providers');
     },
 
     /**
@@ -732,136 +732,131 @@ function escapeHtml(text) {
 // 配置管理
 // ===========================================
 
-// 提供商图标映射
-const GROUP_ICONS = {
-    'Qdrant': 'ri-database-2-line',
-    'Neo4j': 'ri-node-tree',
-    'Embedding': 'ri-vector-bezier',
-    'LLM 实体提取': 'ri-robot-line',
-    '服务配置': 'ri-server-line'
+// 提供商默认配置
+const EMBEDDING_DEFAULTS = {
+    openai: { url: 'https://api.openai.com/v1', model: 'text-embedding-3-small' },
+    deepseek: { url: 'https://api.deepseek.com/v1', model: 'deepseek-embedding' },
+    fastembed: { url: '', model: 'BAAI/bge-small-en-v1.5' },
 };
 
-const GROUP_DESCS = {
-    'Qdrant': '向量数据库配置',
-    'Neo4j': '图数据库配置',
-    'Embedding': '文本向量化模型配置',
-    'LLM 实体提取': '用于知识图谱实体提取的大语言模型',
-    '服务配置': 'MCP Server 运行配置'
+const LLM_DEFAULTS = {
+    deepseek: { url: 'https://api.deepseek.com/v1' },
+    openai: { url: 'https://api.openai.com/v1' },
+    mimo: { url: 'https://api.mimo.ai/v1' },
 };
 
 async function loadSettings() {
     try {
-        // 并行加载 schema 和 config
-        const [schemaResult, configResult] = await Promise.all([
-            API.getConfigSchema(),
-            API.getConfig()
-        ]);
-
-        state.settingsSchema = schemaResult.data;
-        state.currentConfig = configResult.data;
-
-        renderSettings();
+        const result = await API.getConfig();
+        state.currentConfig = result.data;
+        populateSettingsForm();
     } catch (error) {
         showToast('加载配置失败: ' + error.message, 'error');
     }
 }
 
-function renderSettings() {
-    const container = document.getElementById('settings-container');
-    const { fields, groups } = state.settingsSchema;
+function populateSettingsForm() {
+    const c = state.currentConfig;
 
-    let html = '';
+    // Embedding
+    document.getElementById('setting-embedding-provider').value = c.EMBEDDING_PROVIDER || 'openai';
+    document.getElementById('setting-embedding-api-key').value = '';
+    document.getElementById('setting-embedding-api-key').placeholder = c.EMBEDDING_API_KEY || 'sk-...';
+    document.getElementById('setting-embedding-model').value = c.EMBEDDING_MODEL || '';
+    document.getElementById('setting-embedding-base-url').value = c.EMBEDDING_BASE_URL || '';
+    document.getElementById('setting-embedding-dimension').value = c.EMBEDDING_DIMENSION || '';
 
-    for (const group of groups) {
-        const groupFields = fields.filter(f => f.group === group);
-        const icon = GROUP_ICONS[group] || 'ri-settings-3-line';
-        const desc = GROUP_DESCS[group] || '';
+    // LLM
+    document.getElementById('setting-extract-entities').value = c.KB_MCP_EXTRACT_ENTITIES || 'true';
+    document.getElementById('setting-extract-llm').value = c.KB_MCP_EXTRACT_LLM || 'deepseek';
+    document.getElementById('setting-llm-api-key').value = '';
+    document.getElementById('setting-llm-api-key').placeholder = c.LLM_API_KEY || 'sk-...';
+    document.getElementById('setting-llm-base-url').value = c.LLM_BASE_URL || '';
 
-        html += `
-            <div class="settings-group">
-                <div class="settings-group-header">
-                    <div class="settings-group-icon">
-                        <i class="${icon}"></i>
-                    </div>
-                    <div>
-                        <div class="settings-group-title">${group}</div>
-                        <div class="settings-group-desc">${desc}</div>
-                    </div>
-                </div>
-                <div class="settings-fields">
-        `;
+    // Qdrant
+    document.getElementById('setting-qdrant-url').value = c.QDRANT_URL || 'http://localhost:6333';
 
-        for (const field of groupFields) {
-            const value = state.currentConfig[field.key] || '';
-            const isSensitive = field.sensitive;
+    // Neo4j
+    document.getElementById('setting-neo4j-uri').value = c.NEO4J_URI || 'bolt://localhost:7687';
+    document.getElementById('setting-neo4j-user').value = c.NEO4J_USER || 'neo4j';
+    document.getElementById('setting-neo4j-password').value = '';
+    document.getElementById('setting-neo4j-password').placeholder = c.NEO4J_PASSWORD || '密码';
 
-            html += `
-                <div class="settings-field">
-                    <label>
-                        ${field.label}
-                        ${isSensitive ? '<span class="sensitive-badge">敏感</span>' : ''}
-                    </label>
-            `;
+    // 根据提供商显示/隐藏字段
+    onEmbeddingProviderChange();
+    onLLMProviderChange();
+}
 
-            if (field.type === 'select') {
-                html += `
-                    <select id="setting-${field.key}" data-key="${field.key}">
-                        ${field.options.map(opt => `
-                            <option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>
-                        `).join('')}
-                    </select>
-                `;
-            } else if (field.type === 'password') {
-                html += `
-                    <input
-                        type="password"
-                        id="setting-${field.key}"
-                        data-key="${field.key}"
-                        value="${escapeHtml(value)}"
-                        placeholder="${field.placeholder || ''}"
-                        autocomplete="off"
-                    >
-                `;
-            } else {
-                html += `
-                    <input
-                        type="${field.type === 'number' ? 'number' : 'text'}"
-                        id="setting-${field.key}"
-                        data-key="${field.key}"
-                        value="${escapeHtml(value)}"
-                        placeholder="${field.placeholder || ''}"
-                    >
-                `;
-            }
+function onEmbeddingProviderChange() {
+    const provider = document.getElementById('setting-embedding-provider').value;
+    const apiKeyGroup = document.getElementById('embedding-api-key-group');
+    const baseUrlGroup = document.getElementById('embedding-base-url-group');
 
-            html += '</div>';
-        }
-
-        html += `
-                </div>
-            </div>
-        `;
+    if (provider === 'fastembed') {
+        apiKeyGroup.style.display = 'none';
+        baseUrlGroup.style.display = 'none';
+    } else {
+        apiKeyGroup.style.display = '';
+        baseUrlGroup.style.display = '';
     }
 
-    container.innerHTML = html;
+    // 填充默认值
+    const defaults = EMBEDDING_DEFAULTS[provider];
+    if (defaults) {
+        const modelInput = document.getElementById('setting-embedding-model');
+        const urlInput = document.getElementById('setting-embedding-base-url');
+
+        if (!modelInput.value) {
+            modelInput.placeholder = defaults.model;
+        }
+        if (!urlInput.value) {
+            urlInput.placeholder = defaults.url || '自动';
+        }
+    }
+}
+
+function onLLMProviderChange() {
+    const provider = document.getElementById('setting-extract-llm').value;
+    const defaults = LLM_DEFAULTS[provider];
+
+    if (defaults) {
+        const urlInput = document.getElementById('setting-llm-base-url');
+        if (!urlInput.value) {
+            urlInput.placeholder = defaults.url;
+        }
+    }
 }
 
 async function saveSettings() {
     try {
-        const settings = {};
-        const inputs = document.querySelectorAll('#settings-container input, #settings-container select');
+        const settings = {
+            // Embedding
+            EMBEDDING_PROVIDER: document.getElementById('setting-embedding-provider').value,
+            EMBEDDING_API_KEY: document.getElementById('setting-embedding-api-key').value,
+            EMBEDDING_MODEL: document.getElementById('setting-embedding-model').value,
+            EMBEDDING_BASE_URL: document.getElementById('setting-embedding-base-url').value,
+            EMBEDDING_DIMENSION: document.getElementById('setting-embedding-dimension').value,
 
-        inputs.forEach(input => {
-            const key = input.dataset.key;
-            if (key) {
-                settings[key] = input.value;
-            }
-        });
+            // LLM
+            KB_MCP_EXTRACT_ENTITIES: document.getElementById('setting-extract-entities').value,
+            KB_MCP_EXTRACT_LLM: document.getElementById('setting-extract-llm').value,
+            LLM_API_KEY: document.getElementById('setting-llm-api-key').value,
+            LLM_BASE_URL: document.getElementById('setting-llm-base-url').value,
+
+            // Qdrant
+            QDRANT_URL: document.getElementById('setting-qdrant-url').value,
+
+            // Neo4j
+            NEO4J_URI: document.getElementById('setting-neo4j-uri').value,
+            NEO4J_USER: document.getElementById('setting-neo4j-user').value,
+            NEO4J_PASSWORD: document.getElementById('setting-neo4j-password').value,
+        };
 
         const result = await API.updateConfig(settings);
 
         if (result.success) {
             showToast(result.message || '配置已保存', 'success');
+            loadSettings(); // 刷新显示
         } else {
             showToast('保存失败: ' + result.message, 'error');
         }
@@ -881,7 +876,7 @@ async function testConnection(service) {
                 <i class="ri-loader-4-line"></i>
             </div>
             <div class="test-result-info">
-                <div class="test-result-service">测试 ${service}</div>
+                <div class="test-result-service">测试 ${service.toUpperCase()}</div>
                 <div class="test-result-message">连接中...</div>
             </div>
         </div>
@@ -898,7 +893,7 @@ async function testConnection(service) {
                     <i class="ri-check-line"></i>
                 </div>
                 <div class="test-result-info">
-                    <div class="test-result-service">${service}</div>
+                    <div class="test-result-service">${service.toUpperCase()}</div>
                     <div class="test-result-message success">${result.message}</div>
                 </div>
             `;
@@ -909,7 +904,7 @@ async function testConnection(service) {
                     <i class="ri-close-line"></i>
                 </div>
                 <div class="test-result-info">
-                    <div class="test-result-service">${service}</div>
+                    <div class="test-result-service">${service.toUpperCase()}</div>
                     <div class="test-result-message error">${result.message}</div>
                 </div>
             `;
@@ -922,7 +917,7 @@ async function testConnection(service) {
                 <i class="ri-close-line"></i>
             </div>
             <div class="test-result-info">
-                <div class="test-result-service">${service}</div>
+                <div class="test-result-service">${service.toUpperCase()}</div>
                 <div class="test-result-message error">测试失败: ${error.message}</div>
             </div>
         `;

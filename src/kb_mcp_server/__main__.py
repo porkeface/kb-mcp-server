@@ -28,7 +28,11 @@ def create_embedding_provider():
             base_url=settings.embedding_base_url,
         )
     elif settings.embedding_provider == "fastembed":
-        return FastEmbedEmbedding(model_name=settings.embedding_model)
+        # FastEmbed 使用本地模型，不支持 OpenAI 模型名
+        model = settings.embedding_model
+        if model.startswith("text-embedding"):
+            model = "BAAI/bge-small-en-v1.5"
+        return FastEmbedEmbedding(model_name=model)
     else:
         raise ValueError(f"不支持的 Embedding 提供商: {settings.embedding_provider}")
 
@@ -87,11 +91,7 @@ def _run_streamable_http(mcp_instance) -> None:
         host=settings.kb_mcp_host,
         port=settings.kb_mcp_http_port,
     )
-    mcp_instance.run(
-        transport="streamable-http",
-        host=settings.kb_mcp_host,
-        port=settings.kb_mcp_http_port,
-    )
+    mcp_instance.run(transport="streamable-http")
 
 
 def _run_fastapi_server() -> None:
@@ -110,8 +110,8 @@ def _run_fastapi_server() -> None:
     )
 
 
-async def async_main() -> None:
-    """异步主函数"""
+async def async_init() -> None:
+    """异步初始化"""
     _configure_logging()
 
     logger.info(
@@ -130,33 +130,34 @@ async def async_main() -> None:
     register_tools()
     logger.info("MCP Tools 已注册")
 
-    # 根据传输模式运行
-    if settings.kb_mcp_transport == "stdio":
-        _run_stdio(mcp)
-    elif settings.kb_mcp_transport == "streamable-http":
-        # streamable-http 模式下，同时启动 FastAPI 管理 API
-        # 使用 asyncio 并行运行两个服务
-        import threading
-
-        # 在后台线程运行 FastAPI
-        fastapi_thread = threading.Thread(target=_run_fastapi_server, daemon=True)
-        fastapi_thread.start()
-
-        # 主线程运行 MCP Server
-        _run_streamable_http(mcp)
-    else:
-        raise ValueError(f"不支持的传输方式: {settings.kb_mcp_transport}")
-
 
 def main() -> None:
     """主函数"""
     try:
-        asyncio.run(async_main())
+        # 先异步初始化
+        asyncio.run(async_init())
+
+        # 根据传输模式运行
+        if settings.kb_mcp_transport == "stdio":
+            _run_stdio(mcp)
+        elif settings.kb_mcp_transport == "streamable-http":
+            import threading
+
+            # 在后台线程运行 FastAPI
+            fastapi_thread = threading.Thread(target=_run_fastapi_server, daemon=True)
+            fastapi_thread.start()
+
+            # 主线程运行 MCP Server
+            _run_streamable_http(mcp)
+        else:
+            raise ValueError(f"不支持的传输方式: {settings.kb_mcp_transport}")
     except KeyboardInterrupt:
         logger.info("收到中断信号，正在关闭...")
     except Exception as e:
         logger.error("启动失败", error=str(e))
         sys.exit(1)
+
+
 
 
 if __name__ == "__main__":
