@@ -877,8 +877,26 @@ async function testConnection(service) {
     resultEl.style.display = 'none';
     card.classList.remove('test-success', 'test-error');
 
+    // 收集当前 UI 中的配置值
+    const currentSettings = {
+        QDRANT_URL: document.getElementById('setting-qdrant-url')?.value || '',
+        NEO4J_URI: document.getElementById('setting-neo4j-uri')?.value || '',
+        NEO4J_USER: document.getElementById('setting-neo4j-user')?.value || '',
+        NEO4J_PASSWORD: document.getElementById('setting-neo4j-password')?.value || '',
+        EMBEDDING_PROVIDER: document.getElementById('setting-embedding-provider')?.value || '',
+        EMBEDDING_API_KEY: document.getElementById('setting-embedding-api-key')?.value || '',
+        EMBEDDING_MODEL: document.getElementById('setting-embedding-model')?.value || '',
+        EMBEDDING_BASE_URL: document.getElementById('setting-embedding-base-url')?.value || '',
+        KB_MCP_EXTRACT_LLM: document.getElementById('setting-extract-llm')?.value || '',
+        LLM_API_KEY: document.getElementById('setting-llm-api-key')?.value || '',
+        LLM_BASE_URL: document.getElementById('setting-llm-base-url')?.value || '',
+    };
+
     try {
-        const result = await API.testConnection(service);
+        const result = await API.request(`/api/config/test/${service}`, {
+            method: 'POST',
+            body: JSON.stringify({ settings: currentSettings })
+        });
 
         if (result.success) {
             btn.className = 'btn btn-test success';

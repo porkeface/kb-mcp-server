@@ -272,10 +272,20 @@ async def get_providers() -> dict:
 
 
 @router.post("/test/{service}")
-async def test_connection(service: str) -> dict:
-    """测试服务连接"""
+async def test_connection(service: str, request: dict = None) -> dict:
+    """测试服务连接
+
+    可选传入当前 UI 中的配置值进行测试，无需先保存
+    """
     try:
+        # 合并 .env 文件配置和 UI 传入的配置
         config = read_env_file()
+        if request and "settings" in request:
+            ui_settings = request["settings"]
+            # UI 传入的值优先（跳过空值和未修改的敏感字段）
+            for key, value in ui_settings.items():
+                if value and "****" not in str(value):
+                    config[key] = value
 
         if service == "qdrant":
             return await _test_qdrant(config)
