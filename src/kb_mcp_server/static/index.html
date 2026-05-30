@@ -32,6 +32,10 @@
                     <i class="ri-upload-cloud-line"></i>
                     <span>文档上传</span>
                 </a>
+                <a href="#" class="nav-item" data-page="settings">
+                    <i class="ri-settings-3-line"></i>
+                    <span>配置管理</span>
+                </a>
             </nav>
             <div class="sidebar-footer">
                 <a href="/docs" target="_blank" class="nav-item">
@@ -157,6 +161,70 @@
                         </button>
                     </div>
                     <div id="upload-progress" class="upload-progress"></div>
+                </div>
+            </div>
+
+            <!-- 配置管理页面 -->
+            <div id="page-settings" class="page">
+                <div class="page-header">
+                    <h2>配置管理</h2>
+                    <div class="page-actions">
+                        <button class="btn btn-outline" onclick="loadSettings()">
+                            <i class="ri-refresh-line"></i> 刷新
+                        </button>
+                        <button class="btn btn-primary" onclick="saveSettings()">
+                            <i class="ri-save-line"></i> 保存配置
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 配置分组 -->
+                <div id="settings-container" class="settings-container">
+                    <!-- 动态生成 -->
+                </div>
+
+                <!-- 连接测试 -->
+                <div class="card mt-4">
+                    <h3 class="card-title">连接测试</h3>
+                    <p class="text-muted mb-4">测试各个服务的连接状态</p>
+                    <div class="test-buttons">
+                        <button class="btn btn-outline" onclick="testConnection('qdrant')">
+                            <i class="ri-database-2-line"></i> 测试 Qdrant
+                        </button>
+                        <button class="btn btn-outline" onclick="testConnection('neo4j')">
+                            <i class="ri-node-tree"></i> 测试 Neo4j
+                        </button>
+                        <button class="btn btn-outline" onclick="testConnection('embedding')">
+                            <i class="ri-vector-bezier"></i> 测试 Embedding
+                        </button>
+                        <button class="btn btn-outline" onclick="testConnection('deepseek')">
+                            <i class="ri-robot-line"></i> 测试 DeepSeek
+                        </button>
+                        <button class="btn btn-outline" onclick="testConnection('mimo')">
+                            <i class="ri-chat-smile-ai-line"></i> 测试 MIMO
+                        </button>
+                    </div>
+                    <div id="test-results" class="test-results mt-4"></div>
+                </div>
+
+                <!-- 环境变量预览 -->
+                <div class="card mt-4">
+                    <h3 class="card-title">环境变量文件</h3>
+                    <p class="text-muted mb-4">配置保存到项目根目录的 <code>.env</code> 文件</p>
+                    <div class="env-info">
+                        <div class="env-info-item">
+                            <i class="ri-file-text-line"></i>
+                            <span>配置文件路径：<code>.env</code></span>
+                        </div>
+                        <div class="env-info-item">
+                            <i class="ri-information-line"></i>
+                            <span>修改配置后需要重启服务才能生效</span>
+                        </div>
+                        <div class="env-info-item">
+                            <i class="ri-shield-check-line"></i>
+                            <span>敏感信息（API Key）在显示时会自动隐藏</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </main>

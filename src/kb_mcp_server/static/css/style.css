@@ -921,3 +921,245 @@ body {
 .mb-4 {
     margin-bottom: 16px;
 }
+
+.page-actions {
+    display: flex;
+    gap: 12px;
+}
+
+/* ===========================================
+   配置管理页面
+   =========================================== */
+
+.settings-container {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+}
+
+.settings-group {
+    background: var(--bg-secondary);
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    box-shadow: var(--shadow);
+    border: 1px solid var(--border);
+}
+
+.settings-group-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+}
+
+.settings-group-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius);
+    background: linear-gradient(135deg, var(--info), #818cf8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 20px;
+}
+
+.settings-group-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.settings-group-desc {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.settings-fields {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+.settings-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.settings-field.full-width {
+    grid-column: 1 / -1;
+}
+
+.settings-field label {
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.settings-field label .sensitive-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+    background: var(--warning);
+    color: white;
+    border-radius: 4px;
+    font-weight: 600;
+}
+
+.settings-field input,
+.settings-field select {
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 14px;
+    transition: all 0.2s;
+}
+
+.settings-field input:focus,
+.settings-field select:focus {
+    outline: none;
+    border-color: var(--info);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.settings-field input::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.6;
+}
+
+.settings-field .field-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+/* 连接测试按钮 */
+.test-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.test-results {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.test-result-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    background: var(--bg-primary);
+    border-radius: var(--radius);
+    border-left: 4px solid var(--info);
+}
+
+.test-result-item.success {
+    border-left-color: var(--success);
+    background: rgba(16, 185, 129, 0.05);
+}
+
+.test-result-item.error {
+    border-left-color: var(--danger);
+    background: rgba(239, 68, 68, 0.05);
+}
+
+.test-result-item.loading {
+    border-left-color: var(--warning);
+}
+
+.test-result-icon {
+    font-size: 24px;
+}
+
+.test-result-icon.success {
+    color: var(--success);
+}
+
+.test-result-icon.error {
+    color: var(--danger);
+}
+
+.test-result-icon.loading {
+    color: var(--warning);
+    animation: spin 1s linear infinite;
+}
+
+.test-result-info {
+    flex: 1;
+}
+
+.test-result-service {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 4px;
+}
+
+.test-result-message {
+    font-size: 13px;
+    color: var(--text-secondary);
+}
+
+.test-result-message.success {
+    color: var(--success);
+}
+
+.test-result-message.error {
+    color: var(--danger);
+}
+
+/* 环境变量信息 */
+.env-info {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.env-info-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    background: var(--bg-primary);
+    border-radius: var(--radius);
+    font-size: 14px;
+    color: var(--text-secondary);
+}
+
+.env-info-item i {
+    font-size: 18px;
+    color: var(--info);
+}
+
+.env-info-item code {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--info);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 13px;
+}
+
+/* 响应式调整 */
+@media (max-width: 768px) {
+    .settings-fields {
+        grid-template-columns: 1fr;
+    }
+
+    .test-buttons {
+        flex-direction: column;
+    }
+
+    .test-buttons .btn {
+        width: 100%;
+    }
+}

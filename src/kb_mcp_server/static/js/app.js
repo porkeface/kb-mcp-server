@@ -10,7 +10,9 @@ const state = {
     knowledgeBases: [],
     selectedKB: null,
     selectedFiles: [],
-    currentPage: 'dashboard'
+    currentPage: 'dashboard',
+    settingsSchema: null,
+    currentConfig: {}
 };
 
 // ===========================================
@@ -121,6 +123,39 @@ const API = {
         }
 
         return data;
+    },
+
+    /**
+     * 获取配置 Schema
+     */
+    async getConfigSchema() {
+        return this.request('/api/config/schema');
+    },
+
+    /**
+     * 获取当前配置
+     */
+    async getConfig() {
+        return this.request('/api/config');
+    },
+
+    /**
+     * 更新配置
+     */
+    async updateConfig(settings) {
+        return this.request('/api/config', {
+            method: 'POST',
+            body: JSON.stringify({ settings })
+        });
+    },
+
+    /**
+     * 测试服务连接
+     */
+    async testConnection(service) {
+        return this.request(`/api/config/test/${service}`, {
+            method: 'POST'
+        });
     }
 };
 
@@ -158,6 +193,9 @@ function navigateTo(page) {
             break;
         case 'upload':
             loadKBSelects();
+            break;
+        case 'settings':
+            loadSettings();
             break;
     }
 }
@@ -688,6 +726,207 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// ===========================================
+// 配置管理
+// ===========================================
+
+// 提供商图标映射
+const GROUP_ICONS = {
+    'Qdrant': 'ri-database-2-line',
+    'Neo4j': 'ri-node-tree',
+    'Embedding': 'ri-vector-bezier',
+    'LLM 实体提取': 'ri-robot-line',
+    '服务配置': 'ri-server-line'
+};
+
+const GROUP_DESCS = {
+    'Qdrant': '向量数据库配置',
+    'Neo4j': '图数据库配置',
+    'Embedding': '文本向量化模型配置',
+    'LLM 实体提取': '用于知识图谱实体提取的大语言模型',
+    '服务配置': 'MCP Server 运行配置'
+};
+
+async function loadSettings() {
+    try {
+        // 并行加载 schema 和 config
+        const [schemaResult, configResult] = await Promise.all([
+            API.getConfigSchema(),
+            API.getConfig()
+        ]);
+
+        state.settingsSchema = schemaResult.data;
+        state.currentConfig = configResult.data;
+
+        renderSettings();
+    } catch (error) {
+        showToast('加载配置失败: ' + error.message, 'error');
+    }
+}
+
+function renderSettings() {
+    const container = document.getElementById('settings-container');
+    const { fields, groups } = state.settingsSchema;
+
+    let html = '';
+
+    for (const group of groups) {
+        const groupFields = fields.filter(f => f.group === group);
+        const icon = GROUP_ICONS[group] || 'ri-settings-3-line';
+        const desc = GROUP_DESCS[group] || '';
+
+        html += `
+            <div class="settings-group">
+                <div class="settings-group-header">
+                    <div class="settings-group-icon">
+                        <i class="${icon}"></i>
+                    </div>
+                    <div>
+                        <div class="settings-group-title">${group}</div>
+                        <div class="settings-group-desc">${desc}</div>
+                    </div>
+                </div>
+                <div class="settings-fields">
+        `;
+
+        for (const field of groupFields) {
+            const value = state.currentConfig[field.key] || '';
+            const isSensitive = field.sensitive;
+
+            html += `
+                <div class="settings-field">
+                    <label>
+                        ${field.label}
+                        ${isSensitive ? '<span class="sensitive-badge">敏感</span>' : ''}
+                    </label>
+            `;
+
+            if (field.type === 'select') {
+                html += `
+                    <select id="setting-${field.key}" data-key="${field.key}">
+                        ${field.options.map(opt => `
+                            <option value="${opt}" ${value === opt ? 'selected' : ''}>${opt}</option>
+                        `).join('')}
+                    </select>
+                `;
+            } else if (field.type === 'password') {
+                html += `
+                    <input
+                        type="password"
+                        id="setting-${field.key}"
+                        data-key="${field.key}"
+                        value="${escapeHtml(value)}"
+                        placeholder="${field.placeholder || ''}"
+                        autocomplete="off"
+                    >
+                `;
+            } else {
+                html += `
+                    <input
+                        type="${field.type === 'number' ? 'number' : 'text'}"
+                        id="setting-${field.key}"
+                        data-key="${field.key}"
+                        value="${escapeHtml(value)}"
+                        placeholder="${field.placeholder || ''}"
+                    >
+                `;
+            }
+
+            html += '</div>';
+        }
+
+        html += `
+                </div>
+            </div>
+        `;
+    }
+
+    container.innerHTML = html;
+}
+
+async function saveSettings() {
+    try {
+        const settings = {};
+        const inputs = document.querySelectorAll('#settings-container input, #settings-container select');
+
+        inputs.forEach(input => {
+            const key = input.dataset.key;
+            if (key) {
+                settings[key] = input.value;
+            }
+        });
+
+        const result = await API.updateConfig(settings);
+
+        if (result.success) {
+            showToast(result.message || '配置已保存', 'success');
+        } else {
+            showToast('保存失败: ' + result.message, 'error');
+        }
+    } catch (error) {
+        showToast('保存失败: ' + error.message, 'error');
+    }
+}
+
+async function testConnection(service) {
+    const container = document.getElementById('test-results');
+
+    // 显示加载状态
+    const resultId = `test-${service}-${Date.now()}`;
+    container.innerHTML = `
+        <div id="${resultId}" class="test-result-item loading">
+            <div class="test-result-icon loading">
+                <i class="ri-loader-4-line"></i>
+            </div>
+            <div class="test-result-info">
+                <div class="test-result-service">测试 ${service}</div>
+                <div class="test-result-message">连接中...</div>
+            </div>
+        </div>
+    ` + container.innerHTML;
+
+    try {
+        const result = await API.testConnection(service);
+        const el = document.getElementById(resultId);
+
+        if (result.success) {
+            el.className = 'test-result-item success';
+            el.innerHTML = `
+                <div class="test-result-icon success">
+                    <i class="ri-check-line"></i>
+                </div>
+                <div class="test-result-info">
+                    <div class="test-result-service">${service}</div>
+                    <div class="test-result-message success">${result.message}</div>
+                </div>
+            `;
+        } else {
+            el.className = 'test-result-item error';
+            el.innerHTML = `
+                <div class="test-result-icon error">
+                    <i class="ri-close-line"></i>
+                </div>
+                <div class="test-result-info">
+                    <div class="test-result-service">${service}</div>
+                    <div class="test-result-message error">${result.message}</div>
+                </div>
+            `;
+        }
+    } catch (error) {
+        const el = document.getElementById(resultId);
+        el.className = 'test-result-item error';
+        el.innerHTML = `
+            <div class="test-result-icon error">
+                <i class="ri-close-line"></i>
+            </div>
+            <div class="test-result-info">
+                <div class="test-result-service">${service}</div>
+                <div class="test-result-message error">测试失败: ${error.message}</div>
+            </div>
+        `;
+    }
 }
 
 // ===========================================

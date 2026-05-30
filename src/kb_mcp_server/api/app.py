@@ -15,6 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from ..config import settings
 from ..core.kb_manager import KBManager
 from ..mcp.tools import _get_manager
+from .config_api import router as config_router
 
 logger = structlog.get_logger()
 
@@ -96,6 +97,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# 注册配置管理路由
+app.include_router(config_router)
 
 
 # ──────────────────────────────────────────────
