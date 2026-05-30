@@ -49,7 +49,7 @@ services:
   # Qdrant 向量数据库
   # ──────────────────────────────────────
   qdrant:
-    image: qdrant/qdrant:v1.12.1
+    image: qdrant/qdrant:latest
     container_name: kb-qdrant
     ports:
       - "6335:6333"     # REST API (避免与 yi-ai 冲突)
