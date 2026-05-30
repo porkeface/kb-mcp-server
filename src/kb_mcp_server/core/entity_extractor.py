@@ -34,8 +34,8 @@ _PROVIDER_CONFIGS: dict[str, dict[str, str]] = {
         "default_model": "deepseek-chat",
     },
     "mimo": {
-        "base_url": "https://api.mimo.ai/v1",  # 小米 MIMO API 地址（需要确认）
-        "default_model": "mimo-chat",
+        "base_url": "https://token-plan-cn.xiaomimimo.com/v1",
+        "default_model": "mimo-v2.5",
     },
 }
 
@@ -111,8 +111,12 @@ class EntityExtractor:
             )
 
         self._provider = provider_name
-        self._base_url = provider_config["base_url"]
-        self._model = provider_config["default_model"]
+
+        # 获取 base_url（优先使用用户配置的）
+        self._base_url = settings.llm_base_url or settings.mimo_base_url or provider_config["base_url"]
+
+        # 获取模型名称（优先使用用户配置的）
+        self._model = settings.llm_model or provider_config["default_model"]
 
         # 获取 API Key
         api_key = self._resolve_api_key(settings, provider_name)
@@ -128,6 +132,7 @@ class EntityExtractor:
             "EntityExtractor 初始化",
             provider=provider_name,
             model=self._model,
+            base_url=self._base_url,
         )
 
     @staticmethod
@@ -141,10 +146,17 @@ class EntityExtractor:
         Returns:
             API Key，未配置返回 None
         """
+        # 优先使用 LLM_API_KEY（新字段）
+        if settings.llm_api_key:
+            return settings.llm_api_key
+
+        # 兼容旧字段
         if provider == "openai":
             return settings.openai_api_key
         if provider == "deepseek":
             return settings.deepseek_api_key
+        if provider == "mimo":
+            return settings.mimo_api_key
         return None
 
     def _reset_entity_map(self) -> None:

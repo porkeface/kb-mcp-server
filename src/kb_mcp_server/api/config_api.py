@@ -99,8 +99,8 @@ LLM_PROVIDERS = {
     },
     "mimo": {
         "name": "小米 MIMO",
-        "default_url": "https://api.mimo.ai/v1",
-        "default_model": "mimo-chat",
+        "default_url": "https://token-plan-cn.xiaomimimo.com/v1",
+        "default_model": "mimo-v2.5",
     },
 }
 
@@ -131,6 +131,7 @@ async def get_config() -> dict:
             # LLM 实体提取
             "KB_MCP_EXTRACT_ENTITIES": config.get("KB_MCP_EXTRACT_ENTITIES", "true"),
             "KB_MCP_EXTRACT_LLM": config.get("KB_MCP_EXTRACT_LLM", "deepseek"),
+            "LLM_MODEL": config.get("LLM_MODEL", ""),
             "LLM_API_KEY": mask_value("LLM_API_KEY", config.get("LLM_API_KEY") or config.get("DEEPSEEK_API_KEY") or config.get("MIMO_API_KEY")),
             "LLM_BASE_URL": config.get("LLM_BASE_URL") or config.get("MIMO_BASE_URL", ""),
 
@@ -387,7 +388,8 @@ async def _test_llm(config: dict) -> dict:
         else:
             base_url = provider_info["default_url"]
 
-    model = provider_info["default_model"]
+    # 获取模型名称（优先使用用户指定的，否则使用默认值）
+    model = config.get("LLM_MODEL", "") or provider_info["default_model"]
 
     logger.info("LLM 测试参数", provider=provider, base_url=base_url, model=model, has_key=bool(api_key))
 

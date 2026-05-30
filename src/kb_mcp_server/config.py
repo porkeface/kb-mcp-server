@@ -19,8 +19,9 @@ class Settings(BaseSettings):
     neo4j_password: str = Field(default="changeme", description="Neo4j 密码")
 
     # ── Embedding ──
-    embedding_provider: str = Field(default="openai", description="Embedding 提供商: openai | fastembed")
+    embedding_provider: str = Field(default="openai", description="Embedding 提供商: openai | deepseek | fastembed")
     openai_api_key: str | None = Field(default=None, description="OpenAI API Key")
+    embedding_api_key: str | None = Field(default=None, description="Embedding API Key（DeepSeek 等）")
     embedding_model: str = Field(
         default="text-embedding-3-small", description="Embedding 模型名称"
     )
@@ -46,6 +47,9 @@ class Settings(BaseSettings):
         default=True, description="导入文档时是否自动提取实体"
     )
     kb_mcp_extract_llm: str = Field(default="deepseek", description="用于实体提取的 LLM: openai | deepseek | mimo")
+    llm_model: str | None = Field(default=None, description="LLM 模型名称（用户自定义）")
+    llm_api_key: str | None = Field(default=None, description="LLM API Key（通用）")
+    llm_base_url: str | None = Field(default=None, description="LLM API 基础地址（通用）")
     deepseek_api_key: str | None = Field(default=None, description="DeepSeek API Key")
     mimo_api_key: str | None = Field(default=None, description="小米 MIMO API Key")
     mimo_base_url: str | None = Field(default=None, description="小米 MIMO API 基础地址")

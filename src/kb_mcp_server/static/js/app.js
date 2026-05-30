@@ -734,9 +734,9 @@ const EMBEDDING_DEFAULTS = {
 };
 
 const LLM_DEFAULTS = {
-    deepseek: { url: 'https://api.deepseek.com/v1' },
-    openai: { url: 'https://api.openai.com/v1' },
-    mimo: { url: 'https://api.mimo.ai/v1' },
+    deepseek: { url: 'https://api.deepseek.com/v1', model: 'deepseek-chat' },
+    openai: { url: 'https://api.openai.com/v1', model: 'gpt-4o-mini' },
+    mimo: { url: 'https://token-plan-cn.xiaomimimo.com/v1', model: 'mimo-v2.5' },
 };
 
 async function loadSettings() {
@@ -763,6 +763,7 @@ function populateSettingsForm() {
     // LLM
     document.getElementById('setting-extract-entities').value = c.KB_MCP_EXTRACT_ENTITIES || 'true';
     document.getElementById('setting-extract-llm').value = c.KB_MCP_EXTRACT_LLM || 'deepseek';
+    document.getElementById('setting-llm-model').value = c.LLM_MODEL || '';
     document.getElementById('setting-llm-api-key').value = '';
     document.getElementById('setting-llm-api-key').placeholder = c.LLM_API_KEY || 'sk-...';
     document.getElementById('setting-llm-base-url').value = c.LLM_BASE_URL || '';
@@ -814,7 +815,12 @@ function onLLMProviderChange() {
     const defaults = LLM_DEFAULTS[provider];
 
     if (defaults) {
+        const modelInput = document.getElementById('setting-llm-model');
         const urlInput = document.getElementById('setting-llm-base-url');
+
+        if (!modelInput.value) {
+            modelInput.placeholder = defaults.model || '输入模型名称';
+        }
         if (!urlInput.value) {
             urlInput.placeholder = defaults.url;
         }
@@ -834,6 +840,7 @@ async function saveSettings() {
             // LLM
             KB_MCP_EXTRACT_ENTITIES: document.getElementById('setting-extract-entities').value,
             KB_MCP_EXTRACT_LLM: document.getElementById('setting-extract-llm').value,
+            LLM_MODEL: document.getElementById('setting-llm-model').value,
             LLM_API_KEY: document.getElementById('setting-llm-api-key').value,
             LLM_BASE_URL: document.getElementById('setting-llm-base-url').value,
 
@@ -882,6 +889,7 @@ async function testConnection(service) {
         EMBEDDING_MODEL: document.getElementById('setting-embedding-model')?.value || '',
         EMBEDDING_BASE_URL: document.getElementById('setting-embedding-base-url')?.value || '',
         KB_MCP_EXTRACT_LLM: document.getElementById('setting-extract-llm')?.value || '',
+        LLM_MODEL: document.getElementById('setting-llm-model')?.value || '',
         LLM_API_KEY: document.getElementById('setting-llm-api-key')?.value || '',
         LLM_BASE_URL: document.getElementById('setting-llm-base-url')?.value || '',
     };

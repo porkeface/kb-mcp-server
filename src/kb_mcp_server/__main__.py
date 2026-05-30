@@ -18,14 +18,21 @@ logger = structlog.get_logger()
 
 def create_embedding_provider():
     """根据配置创建 Embedding 提供商"""
-    if settings.embedding_provider == "openai":
-        if not settings.openai_api_key:
-            raise ValueError("使用 OpenAI Embedding 时必须设置 OPENAI_API_KEY")
+    if settings.embedding_provider in ("openai", "deepseek"):
+        # DeepSeek 是 OpenAI 兼容的，使用相同逻辑
+        api_key = settings.openai_api_key or settings.embedding_api_key
+        if not api_key:
+            raise ValueError(f"使用 {settings.embedding_provider} Embedding 时必须设置 API Key")
+
+        base_url = settings.embedding_base_url
+        if not base_url and settings.embedding_provider == "deepseek":
+            base_url = "https://api.deepseek.com/v1"
+
         return OpenAIEmbedding(
-            api_key=settings.openai_api_key,
+            api_key=api_key,
             model=settings.embedding_model,
             dimension=settings.embedding_dimension,
-            base_url=settings.embedding_base_url,
+            base_url=base_url,
         )
     elif settings.embedding_provider == "fastembed":
         # FastEmbed 使用本地模型，不支持 OpenAI 模型名
