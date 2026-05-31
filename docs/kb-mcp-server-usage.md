@@ -1,23 +1,27 @@
 # kb-mcp-server 使用指南
 
-> 本文档供 YI-AI 项目的 Agent 参考，了解如何使用易学知识库。
+> 本文档供 YI-AI 项目的 Agent 参考。  
+> 更新时间：2026-05-31
 
 ---
 
 ## 一、kb-mcp-server 是什么
 
-kb-mcp-server 是一个 **MCP 知识库服务器**，为 Agent 提供易学经典文献的语义检索能力。
+kb-mcp-server 是一个 **MCP 知识库服务器**，为 Agent 提供易学经典文献的语义检索和知识图谱推理能力。
 
 **核心定位**：YI-AI 项目的**知识操作系统层**（Single Source of Truth）。
 
-**不是**：普通 RAG 问答系统
-**而是**：为 Agent 写代码时提供权威易学知识来源
+```
+不是：普通 RAG 问答系统
+而是：为 Agent 写代码时提供权威易学知识来源
+```
 
 ---
 
 ## 二、为什么要用它
 
 Agent 在实现易学功能时经常出现：
+
 - 六亲错误
 - 纳甲错误
 - 世应错误
@@ -32,7 +36,7 @@ Agent 在实现易学功能时经常出现：
 
 ## 三、知识库内容
 
-已导入 10 部易学经典，共 128 个文件、1,713 个分块：
+已导入 10 部易学经典，包含：
 
 | 书籍 | 内容 | 优先级 |
 |------|------|--------|
@@ -56,15 +60,15 @@ Agent 可以调用以下工具：
 ### 4.1 kb_search — 语义搜索
 
 ```
-kb_search(kb="yijing", query="纳甲规则", top_k=5)
+kb_search(kb_name="yijing", query="纳甲规则", top_k=5)
 ```
 
-搜索知识库中与查询最相关的内容。
+搜索知识库中与查询最相关的内容。使用三路融合检索（向量 + 图谱 + 关键词）。
 
 **参数**：
-- `kb`：知识库名称，固定为 `"yijing"`
+- `kb_name`：知识库名称，固定为 `"yijing"`
 - `query`：搜索关键词（自然语言）
-- `top_k`：返回结果数量（默认 5）
+- `top_k`：返回结果数量（默认 5，最大 20）
 
 **返回**：匹配的文本片段、相似度分数、来源书籍
 
@@ -83,25 +87,37 @@ kb_list()
 ### 4.3 kb_info — 知识库详情
 
 ```
-kb_info(kb="yijing")
+kb_info(kb_name="yijing")
 ```
 
-获取知识库的详细信息（文档数、分块数等）。
+获取知识库的详细信息（文档数、分块数、图谱实体数等）。
+
+---
+
+### 4.4 kb_hybrid_search — 混合检索
+
+```
+kb_hybrid_search(kb_name="yijing", query="乾卦六亲", max_results=10)
+```
+
+三路融合检索，返回更丰富的结果（包含来源信息）。
 
 ---
 
 ## 五、使用流程
 
-**正确做法**：
+### ✅ 正确做法
+
 ```
 1. Agent 收到任务（如"实现纳甲算法"）
-2. 调用 kb_search(kb="yijing", query="纳甲规则")
+2. 调用 kb_search(kb_name="yijing", query="纳甲规则")
 3. 获取权威规则
 4. 根据规则实现代码
 5. 用 kb_search 验证实现是否正确
 ```
 
-**错误做法**：
+### ❌ 错误做法
+
 ```
 1. Agent 收到任务
 2. 根据模型记忆直接写代码  ← 错！
@@ -115,7 +131,7 @@ kb_info(kb="yijing")
 ### 示例 1：查询纳甲规则
 
 ```
-kb_search(kb="yijing", query="纳甲天干地支规则")
+kb_search(kb_name="yijing", query="纳甲天干地支规则")
 ```
 
 **返回来源**：《火珠林》、六爻参考（najia-table.md）
@@ -123,7 +139,7 @@ kb_search(kb="yijing", query="纳甲天干地支规则")
 ### 示例 2：查询六亲规则
 
 ```
-kb_search(kb="yijing", query="六亲生克关系")
+kb_search(kb_name="yijing", query="六亲生克关系")
 ```
 
 **返回来源**：六爻参考（liuqin-rules.md）
@@ -131,7 +147,7 @@ kb_search(kb="yijing", query="六亲生克关系")
 ### 示例 3：查询世应规则
 
 ```
-kb_search(kb="yijing", query="世应位置如何确定")
+kb_search(kb_name="yijing", query="世应位置如何确定")
 ```
 
 **返回来源**：六爻参考（shiyao-table.md）、《卜筮正宗》
@@ -139,7 +155,7 @@ kb_search(kb="yijing", query="世应位置如何确定")
 ### 示例 4：查询旺衰判断
 
 ```
-kb_search(kb="yijing", query="月建日辰对爻的旺衰影响")
+kb_search(kb_name="yijing", query="月建日辰对爻的旺衰影响")
 ```
 
 **返回来源**：《增删卜易》、《卜筮正宗》
@@ -147,14 +163,56 @@ kb_search(kb="yijing", query="月建日辰对爻的旺衰影响")
 ### 示例 5：查询梅花易数起卦
 
 ```
-kb_search(kb="yijing", query="梅花易数起卦方法")
+kb_search(kb_name="yijing", query="梅花易数起卦方法")
 ```
 
 **返回来源**：《梅花易数》
 
+### 示例 6：查询卦与五行关系
+
+```
+kb_search(kb_name="yijing", query="乾卦五行属性")
+```
+
+**返回来源**：图谱关系（乾 → HAS_ELEMENT → 金）
+
 ---
 
-## 七、注意事项
+## 七、知识图谱
+
+kb-mcp-server 不仅有向量搜索，还有 **Neo4j 知识图谱**：
+
+### 实体类型
+
+| 类型 | 数量 | 示例 |
+|------|------|------|
+| hexagram（卦象） | 423 | 乾、坤、屯、蒙... |
+| concept（概念） | 172 | 世爻、用神、旺衰... |
+| dizhi（地支） | 90 | 子、丑、寅、卯... |
+| element（五行） | 58 | 金、木、水、火、土 |
+| liushen（六神） | 43 | 青龙、朱雀、勾陈... |
+| liuqin（六亲） | 23 | 父母、兄弟、子孙... |
+| tiangan（天干） | 12 | 甲、乙、丙、丁... |
+
+### 关系类型
+
+| 关系 | 含义 | 示例 |
+|------|------|------|
+| HAS_ELEMENT | 卦 → 五行 | 乾 → 金 |
+| HAS_LIUQIN | 卦 → 六亲 | 乾 → 父母 |
+| RELATES_TO | 相关 | 父母 → 金 |
+| MENTIONS | 文献提及 | 卜筮正宗 → 世爻 |
+
+### 图谱检索示例
+
+当搜索"乾卦六亲"时，图谱会：
+1. 找到"乾"实体
+2. 遍历关系：乾 → HAS_ELEMENT → 金
+3. 返回相关实体和关系信息
+
+---
+
+## 八、注意事项
 
 1. **先查后写** — 实现任何易学功能前，先搜索获取权威规则
 2. **来源优先** — 优先参考《卜筮正宗》《增删卜易》《火珠林》的内容
@@ -163,21 +221,23 @@ kb_search(kb="yijing", query="梅花易数起卦方法")
 
 ---
 
-## 八、服务器信息
+## 九、服务器信息
 
 | 组件 | 地址 | 说明 |
 |------|------|------|
 | MCP Server (HTTP) | `http://localhost:8101` | MCP 协议端点 |
 | MCP Server (API) | `http://localhost:8100` | REST API 管理 |
 | Qdrant | `http://localhost:6335` | 向量数据库 |
-| Neo4j | `http://localhost:7476` | 图数据库 |
+| Neo4j | `http://localhost:7476` | 图数据库（Web UI） |
+| Neo4j Bolt | `bolt://localhost:7689` | 图数据库（Bolt 协议） |
 
-**知识库名称**：`yijing`
-**Embedding 模型**：`BAAI/bge-small-zh-v1.5`（512 维，本地运行）
+**知识库名称**：`yijing`  
+**Embedding 模型**：`BAAI/bge-small-zh-v1.5`（512 维，本地运行）  
+**实体提取**：LLM 自动提取（DeepSeek）
 
 ---
 
-## 九、长期架构
+## 十、长期架构
 
 ```
 YI-AI
@@ -198,3 +258,39 @@ YI-AI
 ```
 
 知识库负责告诉 Agent "规则是什么"，规则引擎负责"规则如何执行"，Agent 负责"解释结果"。
+
+---
+
+## 十一、常见问题
+
+### Q: 搜索结果为空怎么办？
+
+尝试：
+1. 换个关键词（如"纳甲" → "天干地支"）
+2. 减少关键词数量
+3. 使用更通用的查询
+
+### Q: 如何验证我的实现是否正确？
+
+```
+# 用《增删卜易》的案例验证
+kb_search(kb_name="yijing", query="增删卜易 占弟病")
+```
+
+返回案例的断卦逻辑，对比你的实现。
+
+### Q: 图谱搜索和向量搜索有什么区别？
+
+- **向量搜索**：语义相似度匹配，找"意思相近"的内容
+- **图谱搜索**：实体关系遍历，找"有关联"的实体
+- **混合搜索**：两者融合，结果更全面
+
+### Q: 如何添加新的知识内容？
+
+通过 API 导入文档：
+
+```bash
+curl -X POST "http://localhost:8100/api/knowledge-bases/yijing/ingest?file_path=/path/to/file.md"
+```
+
+支持格式：`.md`、`.txt`、`.pdf`
