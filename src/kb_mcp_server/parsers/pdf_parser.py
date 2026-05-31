@@ -50,32 +50,29 @@ class PdfParser:
         chunks: list[ParsedChunk] = []
         source = path.name
 
-        doc = fitz.open(str(path))
+        with fitz.open(str(path)) as doc:
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                text = page.get_text("text")
 
-        for page_num in range(len(doc)):
-            page = doc[page_num]
-            text = page.get_text("text")
-
-            if not text.strip():
-                continue
-
-            # 按段落切分页面内容
-            paragraphs = text.split("\n\n")
-
-            for para_idx, paragraph in enumerate(paragraphs):
-                text = paragraph.strip()
-                if not text:
+                if not text.strip():
                     continue
 
-                metadata: dict[str, str] = {
-                    "source": source,
-                    "format": "pdf",
-                    "page": str(page_num + 1),
-                    "paragraph_index": str(para_idx),
-                }
+                # 按段落切分页面内容
+                paragraphs = text.split("\n\n")
 
-                chunks.append(ParsedChunk(text=text, metadata=metadata))
+                for para_idx, paragraph in enumerate(paragraphs):
+                    text = paragraph.strip()
+                    if not text:
+                        continue
 
-        doc.close()
+                    metadata: dict[str, str] = {
+                        "source": source,
+                        "format": "pdf",
+                        "page": str(page_num + 1),
+                        "paragraph_index": str(para_idx),
+                    }
+
+                    chunks.append(ParsedChunk(text=text, metadata=metadata))
 
         return chunks

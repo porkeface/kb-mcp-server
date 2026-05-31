@@ -395,25 +395,25 @@ async def hybrid_search_knowledge_base(
 ) -> JSONResponse:
     """在知识库中进行混合检索"""
     try:
-        # 如果有编排器，使用混合搜索
-        if hasattr(manager, '_orchestrator') and manager._orchestrator:
-            results = await manager._orchestrator.hybrid_search(
-                kb_name=name,
-                query=query,
-                max_results=top_k,
-            )
+        # 使用混合搜索
+        results = await manager.hybrid_search(
+            kb_name=name,
+            query=query,
+            max_results=top_k,
+        )
 
-            data = [
-                {
-                    "text": r.text,
-                    "score": round(r.score, 4),
-                    "source": r.source,
-                    "metadata": r.metadata,
-                    "sources": r.sources,
-                }
-                for r in results
-            ]
-        else:
+        data = [
+            {
+                "text": r.text,
+                "score": round(r.score, 4),
+                "source": r.source,
+                "metadata": r.metadata,
+                "sources": r.sources,
+            }
+            for r in results
+        ]
+
+        if not data:
             # 降级到普通搜索
             results = await manager.search(
                 kb_name=name,

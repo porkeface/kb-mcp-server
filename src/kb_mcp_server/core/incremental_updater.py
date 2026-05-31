@@ -2,7 +2,7 @@
 
 import hashlib
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import aiosqlite
@@ -434,7 +434,7 @@ class IncrementalUpdater:
             file_path=file_path,
             file_hash=current_hash,
             chunk_hashes=new_chunk_hashes,
-            indexed_at=datetime.now(),
+            indexed_at=datetime.now(timezone.utc),
         )
         await self._save_fingerprint(kb_name, new_fingerprint)
 

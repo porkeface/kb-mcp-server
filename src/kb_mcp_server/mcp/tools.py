@@ -255,6 +255,13 @@ async def kb_ingest(
         if ".." in file_path:
             return {"success": False, "message": "文件路径不允许包含 .."}
 
+        # 文件大小校验（50MB）
+        from pathlib import Path
+        MAX_FILE_SIZE = 50 * 1024 * 1024
+        file_path_obj = Path(file_path)
+        if file_path_obj.exists() and file_path_obj.stat().st_size > MAX_FILE_SIZE:
+            return {"success": False, "message": "文件大小超过 50MB 限制"}
+
         # 参数范围校验
         chunk_size = max(50, min(chunk_size, 4096))
         chunk_overlap = max(0, min(chunk_overlap, 512))

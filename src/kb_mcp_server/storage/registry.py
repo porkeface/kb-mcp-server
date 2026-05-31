@@ -1,6 +1,6 @@
 """SQLite 元数据注册表"""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import aiosqlite
@@ -78,7 +78,7 @@ class Registry:
         Returns:
             创建的知识库信息
         """
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         async with aiosqlite.connect(str(self._db_path)) as db:
             await db.execute(
                 """
@@ -234,7 +234,7 @@ class Registry:
             file_format: 文件格式
             chunk_count: 分块数量
         """
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         async with aiosqlite.connect(str(self._db_path)) as db:
             await db.execute(
                 """

@@ -9,7 +9,6 @@ from neo4j import AsyncGraphDatabase
 
 from ..config import Settings
 from ..core.chunker import Chunker, ChunkerConfig
-from ..core.extractors import LLMEntityExtractor, RuleBasedExtractor
 from ..core.extractors.factory import create_extractor
 from ..core.orchestrator import RetrievalOrchestrator
 from ..embedding.base import EmbeddingProvider

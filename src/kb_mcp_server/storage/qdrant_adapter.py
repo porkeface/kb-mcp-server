@@ -1,7 +1,7 @@
 """Qdrant 向量存储适配器"""
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 
 import structlog
 from qdrant_client import QdrantClient
@@ -91,7 +91,7 @@ class QdrantAdapter:
                 "section": chunk.metadata.get("section", ""),
                 "format": chunk.metadata.get("format", ""),
                 "kb_name": kb_name,
-                "indexed_at": datetime.now().isoformat(),  # TODO: 考虑使用 UTC 时间
+                "indexed_at": datetime.now(timezone.utc).isoformat(),
             }
 
             points.append(

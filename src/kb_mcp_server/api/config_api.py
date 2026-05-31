@@ -2,7 +2,7 @@
 
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Request
 import structlog
 
 router = APIRouter(prefix="/api/config", tags=["config"])
