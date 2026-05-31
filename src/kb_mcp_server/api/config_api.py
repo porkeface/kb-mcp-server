@@ -12,7 +12,7 @@ logger = structlog.get_logger()
 _reload_callback = None
 
 
-def set_reload_callback(callback):
+def set_reload_callback(callback) -> None:
     """设置配置热重载回调函数"""
     global _reload_callback
     _reload_callback = callback
@@ -32,7 +32,7 @@ def get_env_path() -> Path:
     return Path(__file__).parent.parent.parent.parent / ".env"
 
 
-def read_env_file() -> dict:
+def read_env_file() -> dict[str, str]:
     """读取 .env 文件"""
     env_path = get_env_path()
     config = {}
@@ -117,6 +117,7 @@ LLM_PROVIDERS = {
 # 允许通过 API 更新的配置键白名单
 ALLOWED_KEYS: set[str] = {
     "QDRANT_URL",
+    "QDRANT_API_KEY",
     "NEO4J_URI",
     "NEO4J_USER",
     "NEO4J_PASSWORD",
@@ -127,6 +128,7 @@ ALLOWED_KEYS: set[str] = {
     "EMBEDDING_DIMENSION",
     "OPENAI_API_KEY",
     "KB_MCP_EXTRACT_ENTITIES",
+    "KB_MCP_EXTRACTOR_TYPE",
     "KB_MCP_EXTRACT_LLM",
     "LLM_MODEL",
     "LLM_API_KEY",

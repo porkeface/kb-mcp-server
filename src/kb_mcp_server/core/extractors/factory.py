@@ -96,9 +96,7 @@ class _NoopExtractor(EntityExtractorBase):
     """空提取器 - 不提取任何实体"""
 
     async def extract(self, text: str) -> ExtractionResult:
-        from .base import ExtractionResult
         return ExtractionResult(entities=[], relations=[])
 
     async def extract_from_chunks(self, chunks: list[str]) -> ExtractionResult:
-        from .base import ExtractionResult
         return ExtractionResult(entities=[], relations=[])

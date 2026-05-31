@@ -144,11 +144,11 @@ async def kb_create(
                 "created_at": kb_info.created_at.isoformat() if kb_info.created_at else None,
             },
         }
-    except ValueError:
-        raise
+    except ValueError as e:
+        return {"success": False, "message": str(e)}
     except Exception as e:
         logger.error("kb_create 失败", name=name, error=str(e))
-        return {"success": False, "message": str(e)}
+        return {"success": False, "message": "创建知识库失败"}
 
 
 @mcp.tool()
@@ -187,11 +187,11 @@ async def kb_info(kb_name: str) -> dict[str, Any]:
             result["qdrant_status"] = kb_info.extra["qdrant_status"]
 
         return result
-    except ValueError:
-        raise
+    except ValueError as e:
+        return {"error": str(e)}
     except Exception as e:
         logger.error("kb_info 失败", kb_name=kb_name, error=str(e))
-        return {"error": str(e)}
+        return {"error": "获取知识库信息失败"}
 
 
 @mcp.tool()
