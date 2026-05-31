@@ -5,7 +5,7 @@ from __future__ import annotations
 import structlog
 
 from ...config import Settings
-from .base import EntityExtractorBase
+from .base import EntityExtractorBase, ExtractionResult
 from .llm_extractor import LLMEntityExtractor
 from .rule_extractor import RuleBasedExtractor, RuleConfig
 from .yijing_rules import YI_JING_RULES
@@ -95,10 +95,10 @@ def register_rule_config(name: str, config: RuleConfig) -> None:
 class _NoopExtractor(EntityExtractorBase):
     """空提取器 - 不提取任何实体"""
 
-    async def extract(self, text: str):
+    async def extract(self, text: str) -> ExtractionResult:
         from .base import ExtractionResult
         return ExtractionResult(entities=[], relations=[])
 
-    async def extract_from_chunks(self, chunks: list[str]):
+    async def extract_from_chunks(self, chunks: list[str]) -> ExtractionResult:
         from .base import ExtractionResult
         return ExtractionResult(entities=[], relations=[])

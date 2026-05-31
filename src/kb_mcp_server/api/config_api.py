@@ -114,6 +114,32 @@ LLM_PROVIDERS = {
 }
 
 
+# 允许通过 API 更新的配置键白名单
+ALLOWED_KEYS: set[str] = {
+    "QDRANT_URL",
+    "NEO4J_URI",
+    "NEO4J_USER",
+    "NEO4J_PASSWORD",
+    "EMBEDDING_PROVIDER",
+    "EMBEDDING_API_KEY",
+    "EMBEDDING_MODEL",
+    "EMBEDDING_BASE_URL",
+    "EMBEDDING_DIMENSION",
+    "OPENAI_API_KEY",
+    "KB_MCP_EXTRACT_ENTITIES",
+    "KB_MCP_EXTRACT_LLM",
+    "LLM_MODEL",
+    "LLM_API_KEY",
+    "LLM_BASE_URL",
+    "DEEPSEEK_API_KEY",
+    "MIMO_API_KEY",
+    "MIMO_BASE_URL",
+    "KB_MCP_HOST",
+    "KB_MCP_PORT",
+    "KB_MCP_LOG_LEVEL",
+}
+
+
 @router.get("")
 async def get_config() -> dict:
     """获取当前配置"""
@@ -171,9 +197,18 @@ async def update_config(request: Request) -> dict:
 
         # 字段映射（UI 字段 -> .env 字段）
         for key, value in settings.items():
+            # 白名单校验
+            if key not in ALLOWED_KEYS:
+                logger.warning("拒绝未授权的配置键", key=key)
+                continue
+
             # 跳过未修改的敏感字段
             if isinstance(value, str) and "****" in value:
                 continue
+
+            # 值中去除换行符（防止注入）
+            if isinstance(value, str):
+                value = value.replace("\n", "").replace("\r", "")
 
             if key == "EMBEDDING_API_KEY":
                 provider = settings.get("EMBEDDING_PROVIDER", current.get("EMBEDDING_PROVIDER", "openai"))

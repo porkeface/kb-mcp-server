@@ -93,7 +93,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -144,7 +144,6 @@ async def health_check() -> JSONResponse:
         data={
             "status": "healthy",
             "transport": settings.kb_mcp_transport,
-            "data_dir": str(settings.kb_mcp_data_dir),
         },
         message="服务运行正常",
     )
@@ -201,8 +200,8 @@ async def list_knowledge_bases(
 
 @app.post("/api/knowledge-bases")
 async def create_knowledge_base(
-    name: str = Query(..., description="知识库名称（小写字母+下划线）"),
-    description: str = Query("", description="知识库描述"),
+    name: str = Query(..., description="知识库名称（小写字母+下划线）", max_length=50),
+    description: str = Query("", description="知识库描述", max_length=500),
     manager: KBManager = Depends(get_kb_manager),
 ) -> JSONResponse:
     """创建知识库"""
@@ -294,15 +293,30 @@ async def delete_knowledge_base(
 # ──────────────────────────────────────────────
 
 
+MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
+
+
 @app.post("/api/knowledge-bases/{name}/ingest")
 async def ingest_document(
     name: str,
-    file_path: str = Query(..., description="文件绝对路径"),
-    chunk_size: int = Query(512, description="分块大小（tokens）"),
-    chunk_overlap: int = Query(64, description="块重叠（tokens）"),
+    file_path: str = Query(..., description="文件绝对路径", max_length=1024),
+    chunk_size: int = Query(512, ge=50, le=4096, description="分块大小（tokens）"),
+    chunk_overlap: int = Query(64, ge=0, le=512, description="块重叠（tokens）"),
     manager: KBManager = Depends(get_kb_manager),
 ) -> JSONResponse:
     """导入文档到知识库"""
+    # 路径安全校验
+    if ".." in file_path:
+        return error_response(status_code=400, detail="文件路径不允许包含 ..")
+
+    # 文件大小校验
+    file_obj = Path(file_path)
+    if file_obj.exists() and file_obj.stat().st_size > MAX_FILE_SIZE:
+        return error_response(
+            status_code=400,
+            detail=f"文件大小超过限制（最大 {MAX_FILE_SIZE // 1024 // 1024}MB）",
+        )
+
     try:
         result = await manager.ingest(
             kb_name=name,
@@ -331,7 +345,7 @@ async def ingest_document(
 @app.get("/api/knowledge-bases/{name}/search")
 async def search_knowledge_base(
     name: str,
-    query: str = Query(..., description="搜索查询"),
+    query: str = Query(..., description="搜索查询", max_length=2000),
     top_k: int = Query(5, ge=1, le=20, description="返回结果数量"),
     score_threshold: float = Query(0.01, ge=0, le=1, description="最低相似度阈值（RRF 融合后分数较低）"),
     manager: KBManager = Depends(get_kb_manager),
@@ -374,7 +388,7 @@ async def search_knowledge_base(
 @app.get("/api/knowledge-bases/{name}/hybrid_search")
 async def hybrid_search_knowledge_base(
     name: str,
-    query: str = Query(..., description="搜索查询"),
+    query: str = Query(..., description="搜索查询", max_length=2000),
     top_k: int = Query(10, ge=1, le=30, description="返回结果数量"),
     include_graph: bool = Query(True, description="是否包含图谱检索"),
     manager: KBManager = Depends(get_kb_manager),

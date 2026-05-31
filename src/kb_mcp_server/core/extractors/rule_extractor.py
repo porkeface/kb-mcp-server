@@ -149,7 +149,7 @@ class RuleBasedExtractor(EntityExtractorBase):
         for rule in self._config.entity_rules:
             for term in rule.terms:
                 # 使用词边界匹配
-                if re.search(rf"(?:^|[，。、；\s]){re.escape(term)}(?:$|[，。、；\s])", text):
+                if re.search(re.escape(term), text):
                     desc = f"{rule.description_prefix}{term}" if rule.description_prefix else ""
                     self._get_or_create_entity(term, rule.entity_type, desc)
 
@@ -176,7 +176,7 @@ class RuleBasedExtractor(EntityExtractorBase):
                         )
                         self._add_relation(source_name, target_name, rule.relation_type, desc)
 
-    def extract(self, text: str) -> ExtractionResult:
+    async def extract(self, text: str) -> ExtractionResult:
         """从文本中提取实体和关系"""
         self._reset()
 

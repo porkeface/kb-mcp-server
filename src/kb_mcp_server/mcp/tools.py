@@ -1,6 +1,6 @@
 """MCP Tools 实现"""
 
-from typing import Any
+from typing import Any, Optional
 
 import structlog
 
@@ -9,7 +9,7 @@ from .server import mcp
 logger = structlog.get_logger()
 
 # 全局 KBManager 实例（在启动时初始化）
-_kb_manager = None
+_kb_manager: Optional[Any] = None
 
 
 def set_kb_manager(manager: Any) -> None:
@@ -49,26 +49,30 @@ async def kb_search(
     Returns:
         包含 text, score, source, metadata 的结果列表
     """
-    manager = _get_manager()
+    try:
+        manager = _get_manager()
 
-    # 参数校验
-    top_k = max(1, min(top_k, 20))
+        # 参数校验
+        top_k = max(1, min(top_k, 20))
 
-    results = await manager.search(
-        kb_name=kb_name,
-        query=query,
-        top_k=top_k,
-    )
+        results = await manager.search(
+            kb_name=kb_name,
+            query=query,
+            top_k=top_k,
+        )
 
-    return [
-        {
-            "text": r.text,
-            "score": round(r.score, 4),
-            "source": r.source,
-            "metadata": r.metadata,
-        }
-        for r in results
-    ]
+        return [
+            {
+                "text": r.text,
+                "score": round(r.score, 4),
+                "source": r.source,
+                "metadata": r.metadata,
+            }
+            for r in results
+        ]
+    except Exception as e:
+        logger.error("kb_search 失败", kb_name=kb_name, error=str(e))
+        return [{"error": str(e)}]
 
 
 # ──────────────────────────────────────────────
@@ -83,20 +87,24 @@ async def kb_list() -> list[dict[str, Any]]:
     Returns:
         知识库列表，每项包含 name, description, document_count, chunk_count, created_at
     """
-    manager = _get_manager()
-    kbs = await manager.list_kbs()
+    try:
+        manager = _get_manager()
+        kbs = await manager.list_kbs()
 
-    return [
-        {
-            "name": kb.name,
-            "description": kb.description,
-            "document_count": kb.document_count,
-            "chunk_count": kb.chunk_count,
-            "embedding_model": kb.embedding_model,
-            "created_at": kb.created_at.isoformat() if kb.created_at else None,
-        }
-        for kb in kbs
-    ]
+        return [
+            {
+                "name": kb.name,
+                "description": kb.description,
+                "document_count": kb.document_count,
+                "chunk_count": kb.chunk_count,
+                "embedding_model": kb.embedding_model,
+                "created_at": kb.created_at.isoformat() if kb.created_at else None,
+            }
+            for kb in kbs
+        ]
+    except Exception as e:
+        logger.error("kb_list 失败", error=str(e))
+        return [{"error": str(e)}]
 
 
 @mcp.tool()
@@ -116,25 +124,31 @@ async def kb_create(
     Returns:
         创建结果，包含知识库信息
     """
-    manager = _get_manager()
+    try:
+        manager = _get_manager()
 
-    # 名称校验
-    if not name.isascii() or not all(c.isalnum() or c == "_" for c in name):
-        raise ValueError("知识库名称只能包含英文字母、数字和下划线")
+        # 名称校验
+        if not name.isascii() or not all(c.isalnum() or c == "_" for c in name):
+            raise ValueError("知识库名称只能包含英文字母、数字和下划线")
 
-    kb_info = await manager.create_kb(name=name, description=description)
+        kb_info = await manager.create_kb(name=name, description=description)
 
-    return {
-        "success": True,
-        "message": f"知识库 '{name}' 创建成功",
-        "kb": {
-            "name": kb_info.name,
-            "description": kb_info.description,
-            "embedding_model": kb_info.embedding_model,
-            "embedding_dimension": kb_info.embedding_dimension,
-            "created_at": kb_info.created_at.isoformat() if kb_info.created_at else None,
-        },
-    }
+        return {
+            "success": True,
+            "message": f"知识库 '{name}' 创建成功",
+            "kb": {
+                "name": kb_info.name,
+                "description": kb_info.description,
+                "embedding_model": kb_info.embedding_model,
+                "embedding_dimension": kb_info.embedding_dimension,
+                "created_at": kb_info.created_at.isoformat() if kb_info.created_at else None,
+            },
+        }
+    except ValueError:
+        raise
+    except Exception as e:
+        logger.error("kb_create 失败", name=name, error=str(e))
+        return {"success": False, "message": str(e)}
 
 
 @mcp.tool()
@@ -148,30 +162,36 @@ async def kb_info(kb_name: str) -> dict[str, Any]:
         包含 name, description, document_count, chunk_count,
         embedding_model, created_at, last_updated 的详情
     """
-    manager = _get_manager()
+    try:
+        manager = _get_manager()
 
-    kb_info = await manager.get_kb_info(kb_name)
-    if not kb_info:
-        raise ValueError(f"知识库 '{kb_name}' 不存在")
+        kb_info = await manager.get_kb_info(kb_name)
+        if not kb_info:
+            raise ValueError(f"知识库 '{kb_name}' 不存在")
 
-    result: dict[str, Any] = {
-        "name": kb_info.name,
-        "description": kb_info.description,
-        "document_count": kb_info.document_count,
-        "chunk_count": kb_info.chunk_count,
-        "embedding_provider": kb_info.embedding_provider,
-        "embedding_model": kb_info.embedding_model,
-        "embedding_dimension": kb_info.embedding_dimension,
-        "created_at": kb_info.created_at.isoformat() if kb_info.created_at else None,
-        "updated_at": kb_info.updated_at.isoformat() if kb_info.updated_at else None,
-    }
+        result: dict[str, Any] = {
+            "name": kb_info.name,
+            "description": kb_info.description,
+            "document_count": kb_info.document_count,
+            "chunk_count": kb_info.chunk_count,
+            "embedding_provider": kb_info.embedding_provider,
+            "embedding_model": kb_info.embedding_model,
+            "embedding_dimension": kb_info.embedding_dimension,
+            "created_at": kb_info.created_at.isoformat() if kb_info.created_at else None,
+            "updated_at": kb_info.updated_at.isoformat() if kb_info.updated_at else None,
+        }
 
-    # 添加 Qdrant 信息
-    if "qdrant_points" in kb_info.extra:
-        result["qdrant_points"] = kb_info.extra["qdrant_points"]
-        result["qdrant_status"] = kb_info.extra["qdrant_status"]
+        # 添加 Qdrant 信息
+        if "qdrant_points" in kb_info.extra:
+            result["qdrant_points"] = kb_info.extra["qdrant_points"]
+            result["qdrant_status"] = kb_info.extra["qdrant_status"]
 
-    return result
+        return result
+    except ValueError:
+        raise
+    except Exception as e:
+        logger.error("kb_info 失败", kb_name=kb_name, error=str(e))
+        return {"error": str(e)}
 
 
 @mcp.tool()
@@ -188,16 +208,20 @@ async def kb_delete(
     Returns:
         删除结果
     """
-    manager = _get_manager()
+    try:
+        manager = _get_manager()
 
-    if not confirm:
-        return {
-            "success": False,
-            "message": "必须设置 confirm=True 才能删除知识库。此操作不可恢复！",
-        }
+        if not confirm:
+            return {
+                "success": False,
+                "message": "必须设置 confirm=True 才能删除知识库。此操作不可恢复！",
+            }
 
-    result = await manager.delete_kb(name=kb_name, confirm=True)
-    return result
+        result = await manager.delete_kb(name=kb_name, confirm=True)
+        return result
+    except Exception as e:
+        logger.error("kb_delete 失败", kb_name=kb_name, error=str(e))
+        return {"success": False, "message": str(e)}
 
 
 # ──────────────────────────────────────────────
@@ -220,22 +244,34 @@ async def kb_ingest(
     Args:
         kb_name: 知识库名称
         file_path: 文件路径 (绝对路径)
-        chunk_size: 分块大小 (tokens)，默认512
-        chunk_overlap: 块重叠 (tokens)，默认64
+        chunk_size: 分块大小 (tokens)，默认512，范围 50-4096
+        chunk_overlap: 块重叠 (tokens)，默认64，范围 0-512
 
     Returns:
         导入结果，包含 doc_id, chunk_count
     """
-    manager = _get_manager()
+    try:
+        # 路径安全校验
+        if ".." in file_path:
+            return {"success": False, "message": "文件路径不允许包含 .."}
 
-    result = await manager.ingest(
-        kb_name=kb_name,
-        file_path=file_path,
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-    )
+        # 参数范围校验
+        chunk_size = max(50, min(chunk_size, 4096))
+        chunk_overlap = max(0, min(chunk_overlap, 512))
 
-    return result
+        manager = _get_manager()
+
+        result = await manager.ingest(
+            kb_name=kb_name,
+            file_path=file_path,
+            chunk_size=chunk_size,
+            chunk_overlap=chunk_overlap,
+        )
+
+        return result
+    except Exception as e:
+        logger.error("kb_ingest 失败", kb_name=kb_name, file_path=file_path, error=str(e))
+        return {"success": False, "message": str(e)}
 
 
 def register_tools() -> None:

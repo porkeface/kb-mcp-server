@@ -154,6 +154,63 @@ class QdrantAdapter:
 
         return search_results
 
+    def keyword_search(
+        self,
+        kb_name: str,
+        query: str,
+        top_k: int = 10,
+    ) -> list[SearchResult]:
+        """关键词全文搜索
+
+        使用 Qdrant 的全文搜索功能（MatchText）进行关键词匹配。
+
+        Args:
+            kb_name: 知识库名称
+            query: 搜索关键词
+            top_k: 返回结果数量
+
+        Returns:
+            搜索结果列表
+        """
+        from qdrant_client.models import Filter, FieldCondition, MatchText
+
+        collection_name = self._collection_name(kb_name)
+
+        results = self._client.scroll(
+            collection_name=collection_name,
+            scroll_filter=Filter(
+                must=[
+                    FieldCondition(
+                        key="text",
+                        match=MatchText(query=query),
+                    )
+                ]
+            ),
+            limit=top_k,
+            with_payload=True,
+            with_vectors=False,
+        )
+
+        search_results: list[SearchResult] = []
+        for point in results[0]:
+            payload = point.payload or {}
+            search_results.append(
+                SearchResult(
+                    text=payload.get("text", ""),
+                    score=0.8,
+                    source="keyword",
+                    metadata={
+                        "doc_id": payload.get("doc_id", ""),
+                        "chunk_index": payload.get("chunk_index", "0"),
+                        "section": payload.get("section", ""),
+                        "source": payload.get("source", ""),
+                        "format": payload.get("format", ""),
+                    },
+                )
+            )
+
+        return search_results
+
     def delete_collection(self, kb_name: str) -> None:
         """删除 Collection
 

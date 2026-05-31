@@ -45,14 +45,14 @@ class TestEntityExtractor:
     @pytest.mark.asyncio
     async def test_extract_entities(self, mock_http_response):
         """测试提取实体"""
-        with patch("kb_mcp_server.core.entity_extractor.httpx") as mock_httpx:
+        with patch("kb_mcp_server.core.extractors.llm_extractor.httpx") as mock_httpx:
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=mock_http_response)
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_httpx.AsyncClient.return_value = mock_client
 
-            from kb_mcp_server.core.entity_extractor import EntityExtractor
+            from kb_mcp_server.core.extractors import LLMEntityExtractor as EntityExtractor
 
             extractor = EntityExtractor(settings=_make_settings())
 
@@ -70,14 +70,14 @@ class TestEntityExtractor:
     @pytest.mark.asyncio
     async def test_extract_from_chunks(self, mock_http_response):
         """测试从分块列表提取实体"""
-        with patch("kb_mcp_server.core.entity_extractor.httpx") as mock_httpx:
+        with patch("kb_mcp_server.core.extractors.llm_extractor.httpx") as mock_httpx:
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=mock_http_response)
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_httpx.AsyncClient.return_value = mock_client
 
-            from kb_mcp_server.core.entity_extractor import EntityExtractor
+            from kb_mcp_server.core.extractors import LLMEntityExtractor as EntityExtractor
             from kb_mcp_server.models.chunk import Chunk
 
             extractor = EntityExtractor(settings=_make_settings())
@@ -96,17 +96,19 @@ class TestEntityExtractor:
             assert result.entities[0].name == "乾卦"
 
     @pytest.mark.asyncio
-    async def test_extract_empty_text_raises(self):
-        """测试提取空文本抛出异常"""
-        from kb_mcp_server.core.entity_extractor import EntityExtractor
+    async def test_extract_empty_text_returns_empty(self):
+        """测试提取空文本返回空结果"""
+        from kb_mcp_server.core.extractors import LLMEntityExtractor as EntityExtractor
 
         extractor = EntityExtractor(settings=_make_settings())
 
-        with pytest.raises(ValueError, match="不能为空"):
-            await extractor.extract("")
+        result = await extractor.extract("")
+        assert len(result.entities) == 0
+        assert len(result.relations) == 0
 
-        with pytest.raises(ValueError, match="不能为空"):
-            await extractor.extract("   ")
+        result = await extractor.extract("   ")
+        assert len(result.entities) == 0
+        assert len(result.relations) == 0
 
     @pytest.mark.asyncio
     async def test_entity_deduplication(self):
@@ -120,14 +122,14 @@ class TestEntityExtractor:
             "choices": [{"message": {"content": dedup_json}}]
         }
 
-        with patch("kb_mcp_server.core.entity_extractor.httpx") as mock_httpx:
+        with patch("kb_mcp_server.core.extractors.llm_extractor.httpx") as mock_httpx:
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=response)
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_httpx.AsyncClient.return_value = mock_client
 
-            from kb_mcp_server.core.entity_extractor import EntityExtractor
+            from kb_mcp_server.core.extractors import LLMEntityExtractor as EntityExtractor
 
             extractor = EntityExtractor(settings=_make_settings())
 
@@ -153,14 +155,14 @@ class TestEntityExtractor:
             resp.json.return_value = {"choices": [{"message": {"content": json_str}}]}
             responses.append(resp)
 
-        with patch("kb_mcp_server.core.entity_extractor.httpx") as mock_httpx:
+        with patch("kb_mcp_server.core.extractors.llm_extractor.httpx") as mock_httpx:
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(side_effect=responses)
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_httpx.AsyncClient.return_value = mock_client
 
-            from kb_mcp_server.core.entity_extractor import EntityExtractor
+            from kb_mcp_server.core.extractors import LLMEntityExtractor as EntityExtractor
             from kb_mcp_server.models.chunk import Chunk
 
             extractor = EntityExtractor(settings=_make_settings())
@@ -185,7 +187,7 @@ class TestEntityExtractor:
     @pytest.mark.asyncio
     async def test_empty_chunks_returns_empty(self):
         """测试空分块列表返回空结果"""
-        from kb_mcp_server.core.entity_extractor import EntityExtractor
+        from kb_mcp_server.core.extractors import LLMEntityExtractor as EntityExtractor
 
         extractor = EntityExtractor(settings=_make_settings())
         result = await extractor.extract_from_chunks([])
@@ -196,7 +198,7 @@ class TestEntityExtractor:
     @pytest.mark.asyncio
     async def test_unsupported_provider_raises(self):
         """测试不支持的提供商抛出异常"""
-        from kb_mcp_server.core.entity_extractor import EntityExtractor
+        from kb_mcp_server.core.extractors import LLMEntityExtractor as EntityExtractor
 
         with pytest.raises(ValueError, match="不支持的 LLM 提供商"):
             EntityExtractor(settings=_make_settings(kb_mcp_extract_llm="unsupported"))
@@ -204,10 +206,10 @@ class TestEntityExtractor:
     @pytest.mark.asyncio
     async def test_missing_api_key_raises(self):
         """测试缺少 API Key 抛出异常"""
-        from kb_mcp_server.core.entity_extractor import EntityExtractor
+        from kb_mcp_server.core.extractors import LLMEntityExtractor as EntityExtractor
 
         with pytest.raises(ValueError, match="未配置"):
-            EntityExtractor(settings=_make_settings(deepseek_api_key=None))
+            EntityExtractor(settings=_make_settings(deepseek_api_key=None, llm_api_key=None))
 
     @pytest.mark.asyncio
     async def test_openai_provider(self):
@@ -219,14 +221,14 @@ class TestEntityExtractor:
             "choices": [{"message": {"content": '{"entities": [], "relations": []}'}}]
         }
 
-        with patch("kb_mcp_server.core.entity_extractor.httpx") as mock_httpx:
+        with patch("kb_mcp_server.core.extractors.llm_extractor.httpx") as mock_httpx:
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=response)
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_httpx.AsyncClient.return_value = mock_client
 
-            from kb_mcp_server.core.entity_extractor import EntityExtractor
+            from kb_mcp_server.core.extractors import LLMEntityExtractor as EntityExtractor
 
             extractor = EntityExtractor(
                 settings=_make_settings(
@@ -251,14 +253,14 @@ class TestEntityExtractor:
             "choices": [{"message": {"content": wrapped_json}}]
         }
 
-        with patch("kb_mcp_server.core.entity_extractor.httpx") as mock_httpx:
+        with patch("kb_mcp_server.core.extractors.llm_extractor.httpx") as mock_httpx:
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=response)
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_httpx.AsyncClient.return_value = mock_client
 
-            from kb_mcp_server.core.entity_extractor import EntityExtractor
+            from kb_mcp_server.core.extractors import LLMEntityExtractor as EntityExtractor
 
             extractor = EntityExtractor(settings=_make_settings())
 
@@ -278,14 +280,14 @@ class TestEntityExtractor:
             "choices": [{"message": {"content": json_str}}]
         }
 
-        with patch("kb_mcp_server.core.entity_extractor.httpx") as mock_httpx:
+        with patch("kb_mcp_server.core.extractors.llm_extractor.httpx") as mock_httpx:
             mock_client = AsyncMock()
             mock_client.post = AsyncMock(return_value=response)
             mock_client.__aenter__ = AsyncMock(return_value=mock_client)
             mock_client.__aexit__ = AsyncMock(return_value=None)
             mock_httpx.AsyncClient.return_value = mock_client
 
-            from kb_mcp_server.core.entity_extractor import EntityExtractor
+            from kb_mcp_server.core.extractors import LLMEntityExtractor as EntityExtractor
 
             extractor = EntityExtractor(settings=_make_settings())
 

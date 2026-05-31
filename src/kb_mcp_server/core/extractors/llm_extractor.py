@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from typing import Any
 
@@ -65,7 +66,6 @@ _EXTRACTION_PROMPT = """\
 {text}
 """
 
-
 class LLMEntityExtractor(EntityExtractorBase):
     """LLM 通用实体提取器
 
@@ -113,9 +113,6 @@ class LLMEntityExtractor(EntityExtractorBase):
 
         self._api_key = api_key
 
-        # 实体名称 -> ID 映射（用于去重）
-        self._entity_name_to_id: dict[str, str] = {}
-
         logger.info(
             "LLMEntityExtractor 初始化",
             provider=provider_name,
@@ -136,17 +133,14 @@ class LLMEntityExtractor(EntityExtractorBase):
             return settings.mimo_api_key
         return None
 
-    def _reset_entity_map(self) -> None:
-        """重置实体名称映射"""
-        self._entity_name_to_id.clear()
-
-    def _get_or_create_entity_id(self, name: str) -> str:
+    @staticmethod
+    def _get_or_create_entity_id(name: str, name_to_id: dict[str, str]) -> str:
         """获取实体 ID（去重）"""
         normalized = name.strip()
-        if normalized in self._entity_name_to_id:
-            return self._entity_name_to_id[normalized]
+        if normalized in name_to_id:
+            return name_to_id[normalized]
         entity_id = f"ent_{uuid.uuid4().hex[:12]}"
-        self._entity_name_to_id[normalized] = entity_id
+        name_to_id[normalized] = entity_id
         return entity_id
 
     async def _call_llm(self, prompt: str) -> str:
@@ -208,17 +202,10 @@ class LLMEntityExtractor(EntityExtractorBase):
         """解析 LLM 返回的 JSON"""
         text = raw.strip()
 
-        # 处理 markdown 代码块
-        if text.startswith("```"):
-            lines = text.split("\n")
-            start_idx = 0
-            end_idx = len(lines)
-            for i, line in enumerate(lines):
-                if line.strip().startswith("```") and start_idx == 0:
-                    start_idx = i + 1
-                elif line.strip() == "```" and i > start_idx:
-                    end_idx = i
-            text = "\n".join(lines[start_idx:end_idx])
+        # 简化 markdown 代码块剥离：用 regex 替代复杂的行迭代
+        text = re.sub(r"^```(?:\w*)\s*\n?", "", text)
+        text = re.sub(r"\n?```\s*$", "", text)
+        text = text.strip()
 
         try:
             data = json.loads(text)
@@ -233,7 +220,7 @@ class LLMEntityExtractor(EntityExtractorBase):
             "relations": data.get("relations", []),
         }
 
-    def _convert_to_entities(self, raw_entities: list[dict[str, Any]]) -> list[Entity]:
+    def _convert_to_entities(self, raw_entities: list[dict[str, Any]], name_to_id: dict[str, str]) -> list[Entity]:
         """将原始实体数据转换为 Entity 对象（含去重）"""
         entities: list[Entity] = []
         seen: set[str] = set()
@@ -244,7 +231,7 @@ class LLMEntityExtractor(EntityExtractorBase):
                 continue
             seen.add(name)
 
-            entity_id = self._get_or_create_entity_id(name)
+            entity_id = self._get_or_create_entity_id(name, name_to_id)
             entity_type = raw.get("type", "concept")
             description = raw.get("description", "")
 
@@ -262,6 +249,7 @@ class LLMEntityExtractor(EntityExtractorBase):
         self,
         raw_relations: list[dict[str, Any]],
         valid_entity_names: set[str],
+        name_to_id: dict[str, str],
     ) -> list[Relation]:
         """将原始关系数据转换为 Relation 对象"""
         relations: list[Relation] = []
@@ -282,8 +270,8 @@ class LLMEntityExtractor(EntityExtractorBase):
                 continue
             seen.add(dedup_key)
 
-            source_id = self._get_or_create_entity_id(source_name)
-            target_id = self._get_or_create_entity_id(target_name)
+            source_id = self._get_or_create_entity_id(source_name, name_to_id)
+            target_id = self._get_or_create_entity_id(target_name, name_to_id)
             description = raw.get("description", "")
 
             properties: dict[str, Any] = {}
@@ -301,37 +289,47 @@ class LLMEntityExtractor(EntityExtractorBase):
 
         return relations
 
+    async def _extract_single(self, text: str, name_to_id: dict[str, str]) -> ExtractionResult:
+        """从单个文本提取实体和关系（内部方法，共享 name_to_id）"""
+        prompt = _EXTRACTION_PROMPT.format(text=text)
+        raw_response = await self._call_llm(prompt)
+        parsed = self._parse_llm_response(raw_response)
+
+        entities = self._convert_to_entities(parsed["entities"], name_to_id)
+        valid_names = {e.name for e in entities}
+        relations = self._convert_to_relations(parsed["relations"], valid_names, name_to_id)
+
+        return ExtractionResult(entities=entities, relations=relations)
+
     async def extract(self, text: str) -> ExtractionResult:
         """从文本中提取实体和关系"""
         if not text or not text.strip():
             return ExtractionResult(entities=[], relations=[])
 
-        self._reset_entity_map()
+        name_to_id: dict[str, str] = {}
 
-        prompt = _EXTRACTION_PROMPT.format(text=text)
         logger.info("开始 LLM 实体提取", text_length=len(text), provider=self._provider)
-
-        raw_response = await self._call_llm(prompt)
-        parsed = self._parse_llm_response(raw_response)
-
-        entities = self._convert_to_entities(parsed["entities"])
-        valid_names = {e.name for e in entities}
-        relations = self._convert_to_relations(parsed["relations"], valid_names)
+        result = await self._extract_single(text, name_to_id)
 
         logger.info(
             "LLM 实体提取完成",
-            entity_count=len(entities),
-            relation_count=len(relations),
+            entity_count=len(result.entities),
+            relation_count=len(result.relations),
         )
 
-        return ExtractionResult(entities=entities, relations=relations)
+        return result
 
     async def extract_from_chunks(self, chunks: list[str]) -> ExtractionResult:
-        """从多个文本块中提取实体和关系（逐块提取后合并去重）"""
+        """从多个文本块中提取实体和关系（逐块提取后合并去重）
+
+        所有块共享同一个 name_to_id 映射，确保跨块的同名实体获得一致的 ID。
+        不调用 self.extract()，直接调用内部方法保持一致性。
+        """
         if not chunks:
             return ExtractionResult(entities=[], relations=[])
 
-        self._reset_entity_map()
+        # 跨块共享的实体名称 -> ID 映射
+        name_to_id: dict[str, str] = {}
 
         all_entities: list[Entity] = []
         all_relations: list[Relation] = []
@@ -342,7 +340,7 @@ class LLMEntityExtractor(EntityExtractorBase):
             logger.info("处理分块", chunk_index=i + 1, chunk_total=len(chunks))
 
             try:
-                result = await self.extract(chunk)
+                result = await self._extract_single(chunk, name_to_id)
             except Exception as exc:
                 logger.error("分块提取失败，跳过", chunk_index=i, error=str(exc))
                 continue

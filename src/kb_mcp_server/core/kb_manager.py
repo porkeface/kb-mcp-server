@@ -93,13 +93,16 @@ class KBManager:
             ".pdf": PdfParser(),
         }
 
-        # 初始化分块器
-        self._chunker = Chunker()
-
     async def initialize(self) -> None:
         """初始化管理器（创建数据库表等）"""
         await self._registry.initialize()
         logger.info("KBManager 初始化完成", has_neo4j=self._neo4j is not None)
+
+    async def close(self) -> None:
+        """关闭所有底层连接"""
+        if self._neo4j:
+            await self._neo4j.close()
+        logger.info("KBManager 已关闭")
 
     async def create_kb(
         self,
@@ -265,7 +268,11 @@ class KBManager:
 
         # 解析文档
         logger.info("开始解析文档", file=file_path, format=ext)
-        parsed_chunks = parser.parse(file_path)
+        try:
+            parsed_chunks = parser.parse(file_path)
+        except Exception as e:
+            logger.error("文档解析失败", file=file_path, error=str(e))
+            raise ValueError(f"文档解析失败: {e}") from e
 
         # 分块
         doc_id = uuid.uuid4().hex[:12]

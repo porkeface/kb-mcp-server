@@ -16,6 +16,9 @@ logger = structlog.get_logger()
 # RRF 常量
 RRF_K = 60
 
+# 统一原始检索分数阈值（向量搜索 + 关键词降级）
+RAW_SCORE_THRESHOLD = 0.2
+
 
 # ---------------------------------------------------------------------------
 # 图谱适配器协议（Neo4jAdapter 实现此协议）
@@ -50,7 +53,7 @@ class GraphAdapter(Protocol):
         kb_name: str,
         entity_id: str,
         rel_type: str | None = None,
-        depth: int = 1,
+        depth: int = 2,
     ) -> list[Any]:
         """获取邻居节点
 
@@ -92,7 +95,7 @@ def _rrf_fuse(
     score_map: dict[str, dict[str, Any]] = {}
 
     for results, weight in zip(ranked_lists, weights):
-        for rank, result in enumerate(results):
+        for rank, result in enumerate(results, start=1):
             key = _dedup_key(result)
             rrf_contribution = weight / (RRF_K + rank)
 
@@ -158,7 +161,7 @@ def _vector_search_sync(
         kb_name=kb_name,
         query_vector=query_vector,
         top_k=top_k,
-        score_threshold=0.2,
+        score_threshold=RAW_SCORE_THRESHOLD,
     )
 
 
@@ -175,42 +178,11 @@ def _keyword_search_sync(
     如果全文搜索不可用，降级为向量检索。
     """
     try:
-        from qdrant_client.models import Filter, FieldCondition, MatchText
-
-        # 使用 Qdrant 全文搜索
-        collection_name = f"kb_{kb_name}"
-        results = qdrant._client.scroll(
-            collection_name=collection_name,
-            scroll_filter=Filter(
-                must=[
-                    FieldCondition(
-                        key="text",
-                        match=MatchText(query=query)
-                    )
-                ]
-            ),
-            limit=top_k,
-            with_payload=True,
-            with_vectors=False,
+        search_results = qdrant.keyword_search(
+            kb_name=kb_name,
+            query=query,
+            top_k=top_k,
         )
-
-        search_results = []
-        for point in results[0]:  # results is (points, next_page_offset)
-            payload = point.payload or {}
-            search_results.append(
-                SearchResult(
-                    text=payload.get("text", ""),
-                    score=0.8,  # 全文匹配给固定分数
-                    source="keyword",
-                    metadata={
-                        "doc_id": payload.get("doc_id", ""),
-                        "chunk_index": payload.get("chunk_index", "0"),
-                        "section": payload.get("section", ""),
-                        "source": payload.get("source", ""),
-                        "format": payload.get("format", ""),
-                    },
-                )
-            )
 
         if search_results:
             return search_results
@@ -226,7 +198,7 @@ def _keyword_search_sync(
         kb_name=kb_name,
         query_vector=query_vector,
         top_k=top_k,
-        score_threshold=0.1,
+        score_threshold=RAW_SCORE_THRESHOLD,
     )
 
 

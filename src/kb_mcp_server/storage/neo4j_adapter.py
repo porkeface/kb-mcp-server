@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 import structlog
@@ -190,7 +191,7 @@ class Neo4jAdapter:
             constraint_name = f"kb_{kb_name}_entity_id_unique"
             try:
                 await session.run(
-                    f"CREATE CONSTRAINT {constraint_name} IF NOT EXISTS "
+                    f"CREATE CONSTRAINT `{constraint_name}` IF NOT EXISTS "
                     f"FOR (n:`{label}`) REQUIRE n.id IS UNIQUE"
                 )
                 logger.info("唯一约束已创建", kb=kb_name, constraint=constraint_name)
@@ -202,19 +203,19 @@ class Neo4jAdapter:
                     error=str(e),
                 )
                 await session.run(
-                    f"CREATE INDEX kb_{kb_name}_entity_id IF NOT EXISTS "
+                    f"CREATE INDEX `kb_{kb_name}_entity_id` IF NOT EXISTS "
                     f"FOR (n:`{label}`) ON (n.id)"
                 )
 
             # 名称索引，用于搜索
             await session.run(
-                f"CREATE INDEX kb_{kb_name}_entity_name IF NOT EXISTS "
+                f"CREATE INDEX `kb_{kb_name}_entity_name` IF NOT EXISTS "
                 f"FOR (n:`{label}`) ON (n.name)"
             )
 
             # 实体类型索引
             await session.run(
-                f"CREATE INDEX kb_{kb_name}_entity_type IF NOT EXISTS "
+                f"CREATE INDEX `kb_{kb_name}_entity_type` IF NOT EXISTS "
                 f"FOR (n:`{label}`) ON (n.entity_type)"
             )
 
@@ -384,7 +385,7 @@ class Neo4jAdapter:
         kb_name: str,
         entity_id: str,
         rel_type: str | None = None,
-        depth: int = 1,
+        depth: int = 2,
     ) -> list[Entity]:
         """获取邻居节点
 
@@ -394,7 +395,7 @@ class Neo4jAdapter:
             kb_name: 知识库名称
             entity_id: 起始实体 ID
             rel_type: 关系类型过滤（可选，不过滤则遍历所有关系类型）
-            depth: 遍历深度，默认 1
+            depth: 遍历深度，默认 2
 
         Returns:
             邻居实体列表（不包含起始节点）
@@ -500,8 +501,6 @@ class Neo4jAdapter:
         Returns:
             匹配的实体列表
         """
-        import re as _re
-
         self._validate_kb_name(kb_name)
         label = self._node_label(kb_name, "Entity")
         limit = max(1, min(limit, 100))
@@ -514,16 +513,16 @@ class Neo4jAdapter:
             if not part:
                 continue
             # 如果包含中文字符，提取2字以上的子串作为关键词
-            chinese_parts = _re.findall(r'[一-鿿]{2,}', part)
+            chinese_parts = re.findall(r'[一-鿿]{2,}', part)
             if chinese_parts:
                 keywords.extend(chinese_parts)
             else:
                 keywords.append(part)
 
         # 如果没有提取到关键词，尝试按中文字符分割（每个字符作为关键词）
-        if not keywords and _re.search(r'[一-鿿]', query):
+        if not keywords and re.search(r'[一-鿿]', query):
             # 提取所有中文字符作为单字关键词
-            keywords = _re.findall(r'[一-鿿]', query)
+            keywords = re.findall(r'[一-鿿]', query)
 
         if not keywords:
             return []
@@ -615,12 +614,13 @@ class Neo4jAdapter:
         self._validate_kb_name(kb_name)
 
         async with self._driver.session() as session:
-            # 删除所有带该知识库前缀标签的节点（及其关系）
-            for label in NODE_LABELS:
-                prefixed_label = self._node_label(kb_name, label)
-                await session.run(
-                    f"MATCH (n:`{prefixed_label}`) DETACH DELETE n"
-                )
+            async def _delete_all(tx: Any) -> None:
+                for label in NODE_LABELS:
+                    prefixed_label = self._node_label(kb_name, label)
+                    await tx.run(
+                        f"MATCH (n:`{prefixed_label}`) DETACH DELETE n"
+                    )
+            await session.execute_write(_delete_all)
 
         logger.info("知识库图数据已完全删除", kb=kb_name)
 
@@ -658,19 +658,16 @@ class Neo4jAdapter:
         label = self._node_label(kb_name, "Entity")
         prefix = f"kb_{kb_name}__"
 
-        # 只统计带该知识库前缀的关系
-        total = 0
+        # 单条查询：遍历 Entity 节点的所有关系，按前缀过滤
         async with self._driver.session() as session:
-            for rt in RELATION_TYPES:
-                prefixed_rel = f"{prefix}{rt}"
-                result: AsyncResult = await session.run(
-                    f"MATCH (n:`{label}`)-[r:`{prefixed_rel}`]-() "
-                    f"RETURN count(r) AS cnt"
-                )
-                record = await result.single()
-                total += record["cnt"] if record else 0
-
-        return total
+            result: AsyncResult = await session.run(
+                f"MATCH (n:`{label}`)-[r]-(m) "
+                f"WHERE type(r) STARTS WITH $prefix "
+                f"RETURN count(DISTINCT r) AS cnt",
+                prefix=prefix,
+            )
+            record = await result.single()
+            return record["cnt"] if record else 0
 
     async def graph_info(self, kb_name: str) -> dict[str, Any]:
         """获取知识库的图谱统计信息

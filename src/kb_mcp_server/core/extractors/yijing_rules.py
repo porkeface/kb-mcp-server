@@ -55,7 +55,7 @@ DOCUMENTS = [
 YI_JING_RULES = RuleConfig(
     name="yijing",
     entity_rules=[
-        EntityRule("hexagram", list(set(BAGUA + HEXAGRAM_NAMES)), "卦象："),
+        EntityRule("hexagram", list(dict.fromkeys(BAGUA + HEXAGRAM_NAMES)), "卦象："),
         EntityRule("element", WUXING, "五行："),
         EntityRule("liuqin", LIUQIN, "六亲："),
         EntityRule("liushen", LIUSHEN, "六神："),
