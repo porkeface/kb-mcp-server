@@ -126,15 +126,16 @@ class QdrantAdapter:
         """
         collection_name = self._collection_name(kb_name)
 
-        results = self._client.search(
+        results = self._client.query_points(
             collection_name=collection_name,
-            query_vector=query_vector,
+            query=query_vector,
             limit=top_k,
             score_threshold=score_threshold,
+            with_payload=True,
         )
 
         search_results: list[SearchResult] = []
-        for result in results:
+        for result in results.points:
             payload = result.payload or {}
             search_results.append(
                 SearchResult(

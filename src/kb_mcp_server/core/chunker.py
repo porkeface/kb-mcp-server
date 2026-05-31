@@ -1,5 +1,6 @@
 """文档分块器 - 滑动窗口 + 语义边界感知"""
 
+import uuid
 from dataclasses import dataclass, field
 
 from ..models.chunk import Chunk, ParsedChunk
@@ -55,7 +56,7 @@ class Chunker:
                     # 跳过过短的片段
                     continue
 
-                chunk_id = f"{kb_name}_{doc_id}_{len(all_chunks)}"
+                chunk_id = str(uuid.uuid4())
                 metadata = {
                     **parsed.metadata,
                     "kb_name": kb_name,

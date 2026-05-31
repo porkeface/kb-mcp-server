@@ -8,10 +8,7 @@ logger = structlog.get_logger()
 
 
 class FastEmbedEmbedding:
-    """FastEmbed 本地 Embedding 提供商
-
-    使用 BAAI/bge-small-en-v1.5 模型，384 维，零成本。
-    """
+    """FastEmbed 本地 Embedding 提供商"""
 
     def __init__(
         self,
@@ -30,17 +27,16 @@ class FastEmbedEmbedding:
         self._model_name = model_name
         self._model = TextEmbedding(model_name=model_name)
 
-        logger.info("FastEmbed 初始化", model=model_name)
+        # 动态检测维度：用模型生成一个测试向量
+        test_emb = list(self._model.embed(["test"]))[0]
+        self._dimension = len(test_emb)
+
+        logger.info("FastEmbed 初始化", model=model_name, dimension=self._dimension)
 
     @property
     def dimension(self) -> int:
-        """向量维度"""
-        # BAAI/bge-small-en-v1.5 是 384 维
-        if "small" in self._model_name:
-            return 384
-        elif "base" in self._model_name:
-            return 768
-        return 384
+        """向量维度（动态检测）"""
+        return self._dimension
 
     @property
     def model_name(self) -> str:
