@@ -5,15 +5,19 @@ from typing import Any
 import uuid
 
 import structlog
+from neo4j import AsyncGraphDatabase
 
 from ..config import Settings
 from ..core.chunker import Chunker, ChunkerConfig
+from ..core.orchestrator import RetrievalOrchestrator
+from ..core.yijing_extractor import YijingExtractor
 from ..embedding.base import EmbeddingProvider
 from ..models.chunk import Chunk
 from ..models.knowledge_base import KnowledgeBaseInfo
-from ..models.search import SearchResult
+from ..models.search import HybridSearchResult, SearchResult
 from ..parsers import MarkdownParser, TextParser, PdfParser
 from ..parsers.base import DocumentParser
+from ..storage.neo4j_adapter import Neo4jAdapter
 from ..storage.registry import Registry
 from ..storage.qdrant_adapter import QdrantAdapter
 
@@ -24,6 +28,7 @@ class KBManager:
     """知识库管理器
 
     负责知识库的 CRUD 操作，协调解析器、分块器、Embedding 和存储层。
+    支持向量检索 + 图谱检索 + 关键词检索的三路融合。
     """
 
     def __init__(
@@ -47,6 +52,29 @@ class KBManager:
             api_key=settings.qdrant_api_key,
         )
 
+        # 初始化 Neo4j 适配器
+        self._neo4j: Neo4jAdapter | None = None
+        if settings.neo4j_uri:
+            try:
+                driver = AsyncGraphDatabase.driver(
+                    settings.neo4j_uri,
+                    auth=(settings.neo4j_user, settings.neo4j_password),
+                )
+                self._neo4j = Neo4jAdapter(driver)
+                logger.info("Neo4j 适配器已初始化", uri=settings.neo4j_uri)
+            except Exception as e:
+                logger.warning("Neo4j 初始化失败，图谱功能不可用", error=str(e))
+
+        # 初始化实体提取器
+        self._extractor = YijingExtractor()
+
+        # 初始化检索编排器（三路融合）
+        self._orchestrator = RetrievalOrchestrator(
+            qdrant=self._qdrant,
+            embedding=embedding_provider,
+            graph=self._neo4j,
+        )
+
         # 初始化解析器
         self._parsers: dict[str, DocumentParser] = {
             ".md": MarkdownParser(),
@@ -62,7 +90,7 @@ class KBManager:
     async def initialize(self) -> None:
         """初始化管理器（创建数据库表等）"""
         await self._registry.initialize()
-        logger.info("KBManager 初始化完成")
+        logger.info("KBManager 初始化完成", has_neo4j=self._neo4j is not None)
 
     async def create_kb(
         self,
@@ -88,6 +116,14 @@ class KBManager:
 
         # 在 Qdrant 中创建 Collection
         self._qdrant.ensure_collection(name, self._embedding.dimension)
+
+        # 在 Neo4j 中创建索引
+        if self._neo4j:
+            try:
+                await self._neo4j.ensure_indexes(name)
+                logger.info("Neo4j 索引已创建", kb=name)
+            except Exception as e:
+                logger.warning("创建 Neo4j 索引失败", kb=name, error=str(e))
 
         # 在注册表中创建记录
         kb_info = await self._registry.create_kb(
@@ -130,6 +166,16 @@ class KBManager:
         except Exception as e:
             logger.debug("获取 Qdrant 信息失败", kb=name, error=str(e))
 
+        # 尝试从 Neo4j 获取图谱信息
+        if self._neo4j:
+            try:
+                entity_count = await self._neo4j.get_entity_count(name)
+                relation_count = await self._neo4j.get_relation_count(name)
+                kb_info.extra["neo4j_entities"] = entity_count
+                kb_info.extra["neo4j_relations"] = relation_count
+            except Exception as e:
+                logger.debug("获取 Neo4j 信息失败", kb=name, error=str(e))
+
         return kb_info
 
     async def delete_kb(self, name: str, confirm: bool = False) -> dict[str, Any]:
@@ -155,6 +201,14 @@ class KBManager:
 
         # 从 Qdrant 删除 Collection
         self._qdrant.delete_collection(name)
+
+        # 从 Neo4j 删除图数据
+        if self._neo4j:
+            try:
+                await self._neo4j.delete_database(name)
+                logger.info("Neo4j 图数据已删除", kb=name)
+            except Exception as e:
+                logger.warning("删除 Neo4j 数据失败", kb=name, error=str(e))
 
         # 从注册表删除
         await self._registry.delete_kb(name)
@@ -232,6 +286,37 @@ class KBManager:
         # 写入 Qdrant
         self._qdrant.upsert_chunks(kb_name, chunks_with_embedding)
 
+        # 提取实体并写入 Neo4j
+        entity_count = 0
+        relation_count = 0
+        if self._neo4j:
+            try:
+                logger.info("开始提取易学实体", kb=kb_name)
+                chunk_texts = [c.text for c in chunks]
+                extraction = self._extractor.extract_from_chunks(chunk_texts)
+
+                if extraction.entities:
+                    entity_count = await self._neo4j.add_entities_batch(
+                        kb_name, extraction.entities
+                    )
+                if extraction.relations:
+                    relation_count = await self._neo4j.add_relations_batch(
+                        kb_name, extraction.relations
+                    )
+
+                logger.info(
+                    "实体写入 Neo4j 完成",
+                    kb=kb_name,
+                    entities=entity_count,
+                    relations=relation_count,
+                )
+            except Exception as e:
+                logger.warning(
+                    "实体提取/写入失败（不影响文档导入）",
+                    kb=kb_name,
+                    error=str(e),
+                )
+
         # 记录文档信息
         await self._registry.add_document(
             kb_name=kb_name,
@@ -252,8 +337,10 @@ class KBManager:
         return {
             "doc_id": doc_id,
             "chunk_count": len(chunks),
+            "entity_count": entity_count,
+            "relation_count": relation_count,
             "file_name": path.name,
-            "message": f"文档已成功导入，共 {len(chunks)} 个分块",
+            "message": f"文档已成功导入，共 {len(chunks)} 个分块，{entity_count} 个实体，{relation_count} 个关系",
         }
 
     async def search(
@@ -261,15 +348,15 @@ class KBManager:
         kb_name: str,
         query: str,
         top_k: int = 5,
-        score_threshold: float = 0.2,
+        score_threshold: float = 0.01,
     ) -> list[SearchResult]:
-        """向量语义搜索
+        """三路融合搜索（向量 + 图谱 + 关键词）
 
         Args:
             kb_name: 知识库名称
             query: 搜索查询
             top_k: 返回结果数量
-            score_threshold: 最低相似度阈值
+            score_threshold: 最低相似度阈值（RRF 融合后分数较低，默认 0.01）
 
         Returns:
             搜索结果列表
@@ -282,16 +369,25 @@ class KBManager:
         if not kb_info:
             raise ValueError(f"知识库 '{kb_name}' 不存在")
 
-        # 生成查询向量
-        query_vector = self._embedding.embed(query)
-
-        # 向量搜索
-        results = self._qdrant.search(
+        # 使用三路融合搜索
+        hybrid_results = await self._orchestrator.hybrid_search(
             kb_name=kb_name,
-            query_vector=query_vector,
-            top_k=top_k,
-            score_threshold=score_threshold,
+            query=query,
+            max_results=top_k,
         )
+
+        # 转换为 SearchResult 格式
+        results: list[SearchResult] = []
+        for hr in hybrid_results:
+            if hr.score >= score_threshold:
+                results.append(
+                    SearchResult(
+                        text=hr.text,
+                        score=hr.score,
+                        source=hr.source,
+                        metadata=hr.metadata,
+                    )
+                )
 
         logger.info(
             "搜索完成",
@@ -301,3 +397,29 @@ class KBManager:
         )
 
         return results
+
+    async def hybrid_search(
+        self,
+        kb_name: str,
+        query: str,
+        max_results: int = 10,
+    ) -> list[HybridSearchResult]:
+        """三路融合搜索（详细版本，返回 HybridSearchResult）
+
+        Args:
+            kb_name: 知识库名称
+            query: 搜索查询
+            max_results: 最大结果数
+
+        Returns:
+            混合搜索结果列表
+        """
+        kb_info = await self._registry.get_kb(kb_name)
+        if not kb_info:
+            raise ValueError(f"知识库 '{kb_name}' 不存在")
+
+        return await self._orchestrator.hybrid_search(
+            kb_name=kb_name,
+            query=query,
+            max_results=max_results,
+        )

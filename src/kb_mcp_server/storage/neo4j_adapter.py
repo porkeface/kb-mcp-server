@@ -27,6 +27,9 @@ RELATION_TYPES = (
     "CONTAINS",
     "REFERENCES",
     "SIMILAR_TO",
+    "HAS_ELEMENT",
+    "HAS_LIUQIN",
+    "RELATES_TO",
 )
 
 
@@ -406,11 +409,11 @@ class Neo4jAdapter:
         else:
             # 遍历所有带该知识库前缀的关系类型
             prefix = f"kb_{kb_name}__"
-            rel_types = [f":`{prefix}{rt}`" for rt in RELATION_TYPES]
-            rel_pattern = "|".join(rel_types)
+            rel_types = [f"`{prefix}{rt}`" for rt in RELATION_TYPES]
+            rel_pattern = ":" + "|".join(rel_types)
 
         async with self._driver.session() as session:
-            result: AsyncResult = await session.run(
+            result = await session.run(
                 f"MATCH (start:`{node_label}` {{id: $entity_id}}) "
                 f"MATCH (start)-[{rel_pattern}*1..{depth}]-(neighbor:`{node_label}`) "
                 f"WHERE neighbor.id <> $entity_id "
@@ -418,7 +421,7 @@ class Neo4jAdapter:
                 f"RETURN n",
                 entity_id=entity_id,
             )
-            records = await result.fetch()
+            records = [record async for record in result]
             entities = [self._record_to_entity(r) for r in records]
 
         logger.debug(
@@ -466,7 +469,7 @@ class Neo4jAdapter:
                 start_id=start_id,
                 end_id=end_id,
             )
-            records = await result.fetch()
+            records = [record async for record in result]
             path_relations = [self._record_to_relation(r, kb_name) for r in records]
 
         logger.debug(
@@ -487,6 +490,7 @@ class Neo4jAdapter:
         """搜索实体
 
         按实体名称进行模糊搜索（CONTAINS 匹配）。
+        支持多关键词搜索（空格分隔或中文分词），任一关键词匹配即返回。
 
         Args:
             kb_name: 知识库名称
@@ -496,21 +500,53 @@ class Neo4jAdapter:
         Returns:
             匹配的实体列表
         """
+        import re as _re
+
         self._validate_kb_name(kb_name)
         label = self._node_label(kb_name, "Entity")
         limit = max(1, min(limit, 100))
 
+        # 分割查询关键词：空格分隔 + 中文分词
+        keywords: list[str] = []
+        # 先按空格分割
+        for part in query.split():
+            part = part.strip()
+            if not part:
+                continue
+            # 如果包含中文字符，提取2字以上的子串作为关键词
+            chinese_parts = _re.findall(r'[一-鿿]{2,}', part)
+            if chinese_parts:
+                keywords.extend(chinese_parts)
+            else:
+                keywords.append(part)
+
+        # 如果没有提取到关键词，尝试按中文字符分割（每个字符作为关键词）
+        if not keywords and _re.search(r'[一-鿿]', query):
+            # 提取所有中文字符作为单字关键词
+            keywords = _re.findall(r'[一-鿿]', query)
+
+        if not keywords:
+            return []
+
+        # 构建 WHERE 子句：任一关键词匹配即可
+        where_conditions = " OR ".join(
+            [f"n.name CONTAINS $keyword_{i}" for i in range(len(keywords))]
+        )
+
+        params: dict[str, Any] = {"limit": limit}
+        for i, kw in enumerate(keywords):
+            params[f"keyword_{i}"] = kw
+
         async with self._driver.session() as session:
-            result: AsyncResult = await session.run(
+            result = await session.run(
                 f"MATCH (n:`{label}`) "
-                f"WHERE n.name CONTAINS $query "
+                f"WHERE {where_conditions} "
                 f"RETURN n "
                 f"ORDER BY n.name "
                 f"LIMIT $limit",
-                query=query,
-                limit=limit,
+                **params,
             )
-            records = await result.fetch()
+            records = [record async for record in result]
             entities = [self._record_to_entity(r) for r in records]
 
         logger.debug("实体搜索完成", kb=kb_name, query=query, count=len(entities))
@@ -636,6 +672,22 @@ class Neo4jAdapter:
 
         return total
 
+    async def graph_info(self, kb_name: str) -> dict[str, Any]:
+        """获取知识库的图谱统计信息
+
+        Args:
+            kb_name: 知识库名称
+
+        Returns:
+            包含 entity_count 和 relation_count 的字典
+        """
+        entity_count = await self.get_entity_count(kb_name)
+        relation_count = await self.get_relation_count(kb_name)
+        return {
+            "entity_count": entity_count,
+            "relation_count": relation_count,
+        }
+
     async def get_all_entities(
         self,
         kb_name: str,
@@ -675,7 +727,7 @@ class Neo4jAdapter:
                 f"LIMIT $limit",
                 **params,
             )
-            records = await result.fetch()
+            records = [record async for record in result]
             return [self._record_to_entity(r) for r in records]
 
     async def get_entity_relations(
@@ -710,5 +762,5 @@ class Neo4jAdapter:
                 f"MATCH {pattern} RETURN r",
                 entity_id=entity_id,
             )
-            records = await result.fetch()
+            records = [record async for record in result]
             return [self._record_to_relation(r, kb_name) for r in records]

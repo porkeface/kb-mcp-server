@@ -333,7 +333,7 @@ async def search_knowledge_base(
     name: str,
     query: str = Query(..., description="搜索查询"),
     top_k: int = Query(5, ge=1, le=20, description="返回结果数量"),
-    score_threshold: float = Query(0.3, ge=0, le=1, description="最低相似度阈值"),
+    score_threshold: float = Query(0.01, ge=0, le=1, description="最低相似度阈值（RRF 融合后分数较低）"),
     manager: KBManager = Depends(get_kb_manager),
 ) -> JSONResponse:
     """在知识库中进行语义搜索"""
