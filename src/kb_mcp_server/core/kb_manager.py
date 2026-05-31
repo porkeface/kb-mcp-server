@@ -9,8 +9,9 @@ from neo4j import AsyncGraphDatabase
 
 from ..config import Settings
 from ..core.chunker import Chunker, ChunkerConfig
+from ..core.extractors import LLMEntityExtractor, RuleBasedExtractor
+from ..core.extractors.factory import create_extractor
 from ..core.orchestrator import RetrievalOrchestrator
-from ..core.yijing_extractor import YijingExtractor
 from ..embedding.base import EmbeddingProvider
 from ..models.chunk import Chunk
 from ..models.knowledge_base import KnowledgeBaseInfo
@@ -65,8 +66,16 @@ class KBManager:
             except Exception as e:
                 logger.warning("Neo4j 初始化失败，图谱功能不可用", error=str(e))
 
-        # 初始化实体提取器
-        self._extractor = YijingExtractor()
+        # 初始化实体提取器（根据配置选择）
+        self._extractor = create_extractor(
+            settings,
+            extractor_type=settings.kb_mcp_extractor_type,
+        )
+        logger.info(
+            "实体提取器初始化",
+            type=settings.kb_mcp_extractor_type,
+            extractor_type=type(self._extractor).__name__,
+        )
 
         # 初始化检索编排器（三路融合）
         self._orchestrator = RetrievalOrchestrator(
@@ -289,11 +298,11 @@ class KBManager:
         # 提取实体并写入 Neo4j
         entity_count = 0
         relation_count = 0
-        if self._neo4j:
+        if self._neo4j and self._settings.kb_mcp_extract_entities:
             try:
-                logger.info("开始提取易学实体", kb=kb_name)
+                logger.info("开始提取实体", kb=kb_name, extractor=type(self._extractor).__name__)
                 chunk_texts = [c.text for c in chunks]
-                extraction = self._extractor.extract_from_chunks(chunk_texts)
+                extraction = await self._extractor.extract_from_chunks(chunk_texts)
 
                 if extraction.entities:
                     entity_count = await self._neo4j.add_entities_batch(

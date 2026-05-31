@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     kb_mcp_extract_entities: bool = Field(
         default=True, description="导入文档时是否自动提取实体"
     )
+    kb_mcp_extractor_type: str = Field(
+        default="auto",
+        description="提取器类型: auto | llm | rule | none（auto 优先用 LLM，无 API Key 时用规则）",
+    )
     kb_mcp_extract_llm: str = Field(default="deepseek", description="用于实体提取的 LLM: openai | deepseek | mimo")
     llm_model: str | None = Field(default=None, description="LLM 模型名称（用户自定义）")
     llm_api_key: str | None = Field(default=None, description="LLM API Key（通用）")
